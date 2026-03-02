@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 const DashboardView = () => {
     const [filtroMes, setFiltroMes] = useState('Todos');
     const [filtroAno, setFiltroAno] = useState('2026');
+    const [modalData, setModalData] = useState(null);
 
     // Dynamic data based on filters
     const getMockData = (ano, mes) => {
@@ -41,8 +42,107 @@ const DashboardView = () => {
     const chartData = currentData.chartData;
     const maxValue = Math.max(...chartData.map(d => d.conteo), 1);
 
+    const generateTableData = (title, count) => {
+        const data = [];
+        const nombres = ['Juan Pérez', 'María Gómez', 'Carlos López', 'Ana Martínez', 'Luis Rodríguez', 'Laura García', 'Marta Sánchez', 'Jorge Díaz'];
+        for (let i = 0; i < count; i++) {
+            data.push({
+                id: `PRC-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
+                deudor: nombres[Math.floor(Math.random() * nombres.length)],
+                estado: title.includes('Notificaci') || title.includes('procesos') || title.includes('Acuerdos') ? 'Reportado' : title.replace('Estado: ', ''),
+                fecha: `2026-0${Math.floor(Math.random() * 4) + 1}-${Math.floor(Math.random() * 28) + 1}`,
+                valor: `$ ${(Math.random() * 5000000 + 500000).toFixed(0).replace(/\d(?=(\d{3})+$)/g, '$&,')}`
+            });
+        }
+        return data;
+    };
+
+    const handleItemClick = (title, count) => {
+        const dataRows = generateTableData(title, Math.min(count, 100)); // Límite de 100 para no sobrecargar el navegador
+        setModalData({ title, count, rows: dataRows });
+    };
+
+    const closeModal = () => setModalData(null);
+
     return (
-        <div>
+        <div style={{ position: 'relative' }}>
+            {/* Modal */}
+            {modalData && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0, left: 0, width: '100vw', height: '100vh',
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    display: 'flex', justifyContent: 'center', alignItems: 'center',
+                    zIndex: 9999
+                }}>
+                    <div style={{
+                        backgroundColor: 'white',
+                        padding: '1.5rem',
+                        borderRadius: '8px',
+                        width: '90%',
+                        maxWidth: '800px',
+                        maxHeight: '85vh',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>
+                            <h2 style={{ margin: 0, color: 'var(--color-primary, #0f766e)', fontSize: '1.25rem' }}>
+                                Datos: {modalData.title} <span style={{ fontSize: '0.9rem', color: '#666', fontWeight: 'normal' }}>({modalData.count} registros {modalData.count > 100 ? '- mostrando primeros 100' : ''})</span>
+                            </h2>
+                            <button
+                                onClick={closeModal}
+                                style={{
+                                    background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#999'
+                                }}
+                            >
+                                &times;
+                            </button>
+                        </div>
+
+                        <div style={{ overflowY: 'auto', flex: 1 }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                                <thead>
+                                    <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                                        <th style={{ padding: '0.75rem', color: '#475569' }}>ID Proceso</th>
+                                        <th style={{ padding: '0.75rem', color: '#475569' }}>Deudor</th>
+                                        <th style={{ padding: '0.75rem', color: '#475569' }}>Estado / Concepto</th>
+                                        <th style={{ padding: '0.75rem', color: '#475569' }}>Fecha</th>
+                                        <th style={{ padding: '0.75rem', color: '#475569' }}>Valor Adeudado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {modalData.rows.length > 0 ? modalData.rows.map((row, idx) => (
+                                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                            <td style={{ padding: '0.75rem', color: '#334155' }}>{row.id}</td>
+                                            <td style={{ padding: '0.75rem', color: '#334155', fontWeight: '500' }}>{row.deudor}</td>
+                                            <td style={{ padding: '0.75rem', color: '#334155' }}>{row.estado}</td>
+                                            <td style={{ padding: '0.75rem', color: '#334155' }}>{row.fecha}</td>
+                                            <td style={{ padding: '0.75rem', color: '#334155' }}>{row.valor}</td>
+                                        </tr>
+                                    )) : (
+                                        <tr>
+                                            <td colSpan="5" style={{ padding: '1rem', textAlign: 'center', color: '#64748b' }}>No hay datos para mostrar</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div style={{ marginTop: '1rem', textAlign: 'right', borderTop: '1px solid #eee', paddingTop: '1rem' }}>
+                            <button
+                                onClick={closeModal}
+                                style={{
+                                    padding: '0.5rem 1.5rem', backgroundColor: 'var(--color-primary, #0f766e)',
+                                    color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '500'
+                                }}
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                 <div>
                     <h1 className="page-title">Tablero de Control - Cobro Coactivo</h1>
@@ -92,7 +192,17 @@ const DashboardView = () => {
             {/* KPIs */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '3rem' }}>
                 {kpis.map((kpi, idx) => (
-                    <div key={idx} className="card" style={{ backgroundColor: kpi.bg, padding: '1.5rem', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div
+                        key={idx}
+                        className="card"
+                        onClick={() => handleItemClick(kpi.label, kpi.value)}
+                        style={{
+                            backgroundColor: kpi.bg, padding: '1.5rem', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center',
+                            cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.1)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow)'; }}
+                    >
                         <span style={{ fontSize: '0.9rem', fontWeight: '500', color: kpi.color, textTransform: 'uppercase', marginBottom: '0.5rem' }}>
                             {kpi.label}
                         </span>
@@ -111,18 +221,28 @@ const DashboardView = () => {
                         {chartData.map((data, idx) => {
                             const heightPercentage = (data.conteo / maxValue) * 100;
                             return (
-                                <div key={idx} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
+                                <div
+                                    key={idx}
+                                    style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}
+                                >
                                     <div style={{ marginBottom: '0.5rem', fontWeight: 'bold', color: 'var(--color-text)' }}>{data.conteo}</div>
-                                    <div style={{
-                                        width: '60%',
-                                        height: `${heightPercentage}%`,
-                                        background: `linear-gradient(to right, ${data.color}bb 0%, ${data.color} 50%, ${data.color}bb 100%)`,
-                                        position: 'relative',
-                                        boxShadow: 'inset -2px -5px 10px rgba(0,0,0,0.15), 5px 5px 10px rgba(0,0,0,0.1)',
-                                        transition: 'height 0.3s ease',
-                                        borderBottomLeftRadius: '5px',
-                                        borderBottomRightRadius: '5px'
-                                    }}>
+                                    <div
+                                        onClick={() => handleItemClick(`Estado: ${data.estado}`, data.conteo)}
+                                        style={{
+                                            width: '60%',
+                                            height: `${heightPercentage}%`,
+                                            background: `linear-gradient(to right, ${data.color}bb 0%, ${data.color} 50%, ${data.color}bb 100%)`,
+                                            position: 'relative',
+                                            boxShadow: 'inset -2px -5px 10px rgba(0,0,0,0.15), 5px 5px 10px rgba(0,0,0,0.1)',
+                                            transition: 'height 0.3s ease, filter 0.2s',
+                                            borderBottomLeftRadius: '5px',
+                                            borderBottomRightRadius: '5px',
+                                            cursor: 'pointer'
+                                        }}
+                                        title={`Ver ${data.conteo} procesos de ${data.estado}`}
+                                        onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(1.1)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.filter = 'brightness(1)'}
+                                    >
                                         <div style={{
                                             position: 'absolute',
                                             top: '-10px', /* Half of the height to perfectly sit on top */
@@ -152,15 +272,30 @@ const DashboardView = () => {
                 <div className="card">
                     <h3 style={{ marginBottom: '1.5rem', color: 'var(--color-primary)' }}>Notificaciones Recientes</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <div style={{ padding: '1rem', borderLeft: '4px solid #f59e0b', backgroundColor: '#fffbeb', borderRadius: '4px' }}>
+                        <div
+                            onClick={() => handleItemClick('Procesos próximos a prescripción', 45)}
+                            style={{ padding: '1rem', borderLeft: '4px solid #f59e0b', backgroundColor: '#fffbeb', borderRadius: '4px', cursor: 'pointer', transition: 'background-color 0.2s' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fef3c7'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fffbeb'}
+                        >
                             <p style={{ margin: 0, fontWeight: '500', fontSize: '0.9rem' }}>45 procesos próximos a prescripción</p>
                             <span style={{ fontSize: '0.8rem', color: '#d97706' }}>Hace 2 horas</span>
                         </div>
-                        <div style={{ padding: '1rem', borderLeft: '4px solid #10b981', backgroundColor: '#ecfdf5', borderRadius: '4px' }}>
+                        <div
+                            onClick={() => handleItemClick('Acuerdos de pago liquidados hoy', 8)}
+                            style={{ padding: '1rem', borderLeft: '4px solid #10b981', backgroundColor: '#ecfdf5', borderRadius: '4px', cursor: 'pointer', transition: 'background-color 0.2s' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#d1fae5'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ecfdf5'}
+                        >
                             <p style={{ margin: 0, fontWeight: '500', fontSize: '0.9rem' }}>8 acuerdos de pago liquidados hoy</p>
                             <span style={{ fontSize: '0.8rem', color: '#059669' }}>Hace 5 horas</span>
                         </div>
-                        <div style={{ padding: '1rem', borderLeft: '4px solid #6366f1', backgroundColor: '#eef2ff', borderRadius: '4px' }}>
+                        <div
+                            onClick={() => handleItemClick('Nueva sincronización de cartera completada', 1)}
+                            style={{ padding: '1rem', borderLeft: '4px solid #6366f1', backgroundColor: '#eef2ff', borderRadius: '4px', cursor: 'pointer', transition: 'background-color 0.2s' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e0e7ff'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#eef2ff'}
+                        >
                             <p style={{ margin: 0, fontWeight: '500', fontSize: '0.9rem' }}>Nueva sincronización de cartera completada</p>
                             <span style={{ fontSize: '0.8rem', color: '#4f46e5' }}>Ayer</span>
                         </div>
@@ -172,3 +307,4 @@ const DashboardView = () => {
 };
 
 export default DashboardView;
+
