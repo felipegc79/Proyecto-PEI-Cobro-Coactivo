@@ -23,10 +23,10 @@ const DashboardView = () => {
 
         return {
             kpis: [
-                { label: 'Total Procesos', value: Math.floor(342 * multiplier), bg: '#eef2ff', color: '#4f46e5' },
-                { label: 'Procesos Abiertos', value: Math.floor(156 * multiplier), bg: '#f0fdf4', color: '#16a34a' },
-                { label: 'En Reclamación', value: Math.floor(45 * multiplier), bg: '#fffbeb', color: '#d97706' },
-                { label: 'Procesos Cerrados', value: Math.floor(141 * multiplier), bg: '#f3f4f6', color: '#4b5563' }
+                { label: 'Total Procesos', value: Math.floor(342 * multiplier), dinero: `$ ${(Math.floor(342 * multiplier) * 4500000).toLocaleString('en-US')}`, bg: '#eef2ff', color: '#4f46e5' },
+                { label: 'Procesos Abiertos', value: Math.floor(156 * multiplier), dinero: `$ ${(Math.floor(156 * multiplier) * 4500000).toLocaleString('en-US')}`, bg: '#f0fdf4', color: '#16a34a' },
+                { label: 'En Reclamación', value: Math.floor(45 * multiplier), dinero: `$ ${(Math.floor(45 * multiplier) * 4500000).toLocaleString('en-US')}`, bg: '#fffbeb', color: '#d97706' },
+                { label: 'Procesos Cerrados', value: Math.floor(141 * multiplier), dinero: `$ ${(Math.floor(141 * multiplier) * 4500000).toLocaleString('en-US')}`, bg: '#f3f4f6', color: '#4b5563' }
             ],
             chartData: [
                 { estado: 'Apertura', conteo: Math.floor(80 * multiplier), color: '#6366f1' },
@@ -46,12 +46,20 @@ const DashboardView = () => {
         const data = [];
         const nombres = ['Juan Pérez', 'María Gómez', 'Carlos López', 'Ana Martínez', 'Luis Rodríguez', 'Laura García', 'Marta Sánchez', 'Jorge Díaz'];
         for (let i = 0; i < count; i++) {
+            let estadoAleatorio;
+            if (title === 'Total Procesos') {
+                const estados = ['Abierto', 'En reclamación', 'Cerrado'];
+                estadoAleatorio = estados[Math.floor(Math.random() * estados.length)];
+            } else {
+                estadoAleatorio = title.includes('Notificaci') || title.includes('procesos') || title.includes('Acuerdos') ? 'Reportado' : title.replace('Estado: ', '');
+            }
+
             data.push({
                 id: `PRC-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
                 deudor: nombres[Math.floor(Math.random() * nombres.length)],
-                estado: title.includes('Notificaci') || title.includes('procesos') || title.includes('Acuerdos') ? 'Reportado' : title.replace('Estado: ', ''),
+                estado: estadoAleatorio,
                 fecha: `2026-0${Math.floor(Math.random() * 4) + 1}-${Math.floor(Math.random() * 28) + 1}`,
-                valor: `$ ${(Math.random() * 5000000 + 500000).toFixed(0).replace(/\d(?=(\d{3})+$)/g, '$&,')}`
+                valor: `$ ${(Math.random() * 5000000 + 500000).toFixed(0).replace(/\\d(?=(\\d{3})+$)/g, '$&,')}`
             });
         }
         return data;
@@ -206,8 +214,11 @@ const DashboardView = () => {
                         <span style={{ fontSize: '0.9rem', fontWeight: '500', color: kpi.color, textTransform: 'uppercase', marginBottom: '0.5rem' }}>
                             {kpi.label}
                         </span>
-                        <span style={{ fontSize: '2.5rem', fontWeight: 'bold', color: kpi.color }}>
+                        <span style={{ fontSize: '2.5rem', fontWeight: 'bold', color: kpi.color, lineHeight: '1.2' }}>
                             {kpi.value}
+                        </span>
+                        <span style={{ fontSize: '1.1rem', fontWeight: '600', color: kpi.color, opacity: 0.85 }}>
+                            {kpi.dinero}
                         </span>
                     </div>
                 ))}
