@@ -23,10 +23,10 @@ const DashboardView = () => {
 
         return {
             kpis: [
-                { label: 'Total Procesos', value: Math.floor(342 * multiplier), dinero: `$ ${(Math.floor(342 * multiplier) * 4500000).toLocaleString('en-US')}`, bg: '#eef2ff', color: '#4f46e5' },
-                { label: 'Procesos Abiertos', value: Math.floor(156 * multiplier), dinero: `$ ${(Math.floor(156 * multiplier) * 4500000).toLocaleString('en-US')}`, bg: '#f0fdf4', color: '#16a34a' },
-                { label: 'En Reclamación', value: Math.floor(45 * multiplier), dinero: `$ ${(Math.floor(45 * multiplier) * 4500000).toLocaleString('en-US')}`, bg: '#fffbeb', color: '#d97706' },
-                { label: 'Procesos Cerrados', value: Math.floor(141 * multiplier), dinero: `$ ${(Math.floor(141 * multiplier) * 4500000).toLocaleString('en-US')}`, bg: '#f3f4f6', color: '#4b5563' }
+                { label: 'Total Procesos', value: Math.floor(342 * multiplier), dinero: `$ ${(Math.floor(342 * multiplier) * 4500000).toLocaleString('de-DE')}`, bg: '#eef2ff', color: '#4f46e5' },
+                { label: 'Procesos Abiertos', value: Math.floor(156 * multiplier), dinero: `$ ${(Math.floor(156 * multiplier) * 4500000).toLocaleString('de-DE')}`, bg: '#f0fdf4', color: '#16a34a' },
+                { label: 'En Reclamación', value: Math.floor(45 * multiplier), dinero: `$ ${(Math.floor(45 * multiplier) * 4500000).toLocaleString('de-DE')}`, bg: '#fffbeb', color: '#d97706' },
+                { label: 'Procesos Cerrados', value: Math.floor(141 * multiplier), dinero: `$ ${(Math.floor(141 * multiplier) * 4500000).toLocaleString('de-DE')}`, bg: '#f3f4f6', color: '#4b5563' }
             ],
             chartData: [
                 { estado: 'Apertura', conteo: Math.floor(80 * multiplier), color: '#6366f1' },
@@ -59,7 +59,7 @@ const DashboardView = () => {
                 deudor: nombres[Math.floor(Math.random() * nombres.length)],
                 estado: estadoAleatorio,
                 fecha: `2026-0${Math.floor(Math.random() * 4) + 1}-${Math.floor(Math.random() * 28) + 1}`,
-                valor: `$ ${(Math.random() * 5000000 + 500000).toFixed(0).replace(/\\d(?=(\\d{3})+$)/g, '$&,')}`
+                valor: `$ ${Math.floor(Math.random() * 5000000 + 500000).toLocaleString('de-DE')}`
             });
         }
         return data;
