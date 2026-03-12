@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import IndicadorAsignacion from '../Shared/IndicadorAsignacion';
 
 const DefensaView = () => {
     const [estadoPruebas, setEstadoPruebas] = useState('');
@@ -38,6 +39,8 @@ const DefensaView = () => {
         <div>
             <h1 className="page-title">Defensa del Deudor</h1>
             <p className="page-subtitle">Recepción de excepciones formales y evaluación de pruebas aportadas.</p>
+
+            <IndicadorAsignacion area="Dirección Jurídica" funcionario="Dr. Roberto Gómez" />
 
             <div className="card">
                 <h3 style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', marginBottom: '1.5rem' }}>

@@ -4,11 +4,14 @@ import FacturasList from './EstadoCuenta/FacturasList';
 import MandamientoPreview, { MandamientoPDFContent } from './GeneracionMandamiento/MandamientoPreview';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import IndicadorAsignacion from '../Shared/IndicadorAsignacion';
 
-const AperturaView = () => {
+const AperturaView = ({ onAddProcess }) => {
     const [deudorActual, setDeudorActual] = useState(null);
     const [facturasSeleccionadas, setFacturasSeleccionadas] = useState([]);
     const [mandamientoGenerado, setMandamientoGenerado] = useState(false);
+    const [consecutivoProceso, setConsecutivoProceso] = useState(null);
+    const [pdfUrl, setPdfUrl] = useState(null);
     const pdfRef = useRef(null);
 
     const mockFacturas = [
@@ -37,39 +40,84 @@ const AperturaView = () => {
             pdfRef.current.style.left = '0px';
             pdfRef.current.style.zIndex = '9999';
 
-            html2canvas(pdfRef.current, { scale: 2 }).then((canvas) => {
-                const imgData = canvas.toDataURL('image/jpeg', 0.98);
-                const pdf = new jsPDF('p', 'mm', 'a4');
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = pdf.internal.pageSize.getHeight();
-                const imgProps = pdf.getImageProperties(imgData);
-                const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+            // Pequeña espera para asegurar que el elemento sea renderizado y los estilos aplicados
+            setTimeout(() => {
+                html2canvas(pdfRef.current, { 
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                    logging: false
+                }).then((canvas) => {
+                    const imgData = canvas.toDataURL('image/jpeg', 1.0);
+                    const pdf = new jsPDF('p', 'mm', 'a4');
+                    const pdfWidth = pdf.internal.pageSize.getWidth();
+                    const pdfHeight = pdf.internal.pageSize.getHeight();
+                    const imgProps = pdf.getImageProperties(imgData);
+                    const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
 
-                let heightLeft = imgHeight;
-                let position = 0;
+                    let heightLeft = imgHeight;
+                    let position = 0;
 
-                pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
-                heightLeft -= pdfHeight;
-
-                while (heightLeft > 0) {
-                    position = position - pdfHeight;
-                    pdf.addPage();
                     pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
                     heightLeft -= pdfHeight;
-                }
 
-                pdf.save(`Mandamiento_Pago_${deudorActual.identificacion}.pdf`);
+                    while (heightLeft > 0) {
+                        position = position - pdfHeight;
+                        pdf.addPage();
+                        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
+                        heightLeft -= pdfHeight;
+                    }
 
-                pdfRef.current.style.top = '-10000px';
-                pdfRef.current.style.left = '-10000px';
-                pdfRef.current.style.zIndex = '-1';
-                setMandamientoGenerado(true);
-            });
+                    // 1. Generar el Blob del PDF
+                    const blob = pdf.output('blob');
+                    const url = URL.createObjectURL(blob);
+                    setPdfUrl(url);
+
+                    // 2. Ejecutar descarga (Método compatible con Chrome/Edge/Firefox)
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `Borrador_Mandamiento_${deudorActual.identificacion}.pdf`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    // Limpiar y actualizar estado
+                    pdfRef.current.style.top = '-10000px';
+                    pdfRef.current.style.left = '-10000px';
+                    pdfRef.current.style.zIndex = '-1';
+                    setMandamientoGenerado(true);
+                }).catch(err => {
+                    console.error("Error generating PDF:", err);
+                    alert("Hubo un error al generar el PDF. Por favor intente de nuevo.");
+                });
+            }, 500);
         }
     };
 
     const onAprobar = () => {
-        alert("Mandamiento Aprobado. Iniciando notificación al deudor (Multicanal)...");
+        const nuevoConsecutivo = `CC-${new Date().getFullYear()}-${Math.floor(Math.random() * 8999) + 1000}`;
+        setConsecutivoProceso(nuevoConsecutivo);
+        
+        // Sincronizar con el estado global (Seguimiento de Procesos)
+        if (onAddProcess) {
+            onAddProcess({
+                id: Date.now().toString(),
+                nombre: deudorActual.nombre,
+                identificacion: deudorActual.identificacion,
+                consecutivo: nuevoConsecutivo,
+                estado: 'Aceptado',
+                pdfUrl: pdfUrl,
+                areaResponsable: 'Seguimiento y Control',
+                funcionarioAsignado: 'Admin Seguimiento',
+                notificaciones: {
+                    telefonica: [],
+                    personal: [],
+                    electronico: []
+                }
+            });
+        }
+        
+        alert(`Mandamiento Aprobado. Consecutivo generado: ${nuevoConsecutivo}. Sincronizado con Seguimiento de Procesos.`);
     };
 
     const onRechazar = () => {
@@ -125,6 +173,8 @@ const AperturaView = () => {
         setDeudorActual(proceso);
         setFacturasSeleccionadas([]);
         setMandamientoGenerado(false);
+        setConsecutivoProceso(null);
+        setPdfUrl(null);
     };
 
     const onUploadExcel = () => {
@@ -140,6 +190,8 @@ const AperturaView = () => {
             <p className="page-subtitle">
                 Identifique al contribuyente, seleccione las obligaciones en mora y genere el Mandamiento de Pago.
             </p>
+
+            <IndicadorAsignacion area="Jurídica - Apertura" funcionario="Admin Coactivo" />
 
             {!deudorActual ? (
                 <div className="card" style={{ marginBottom: '2rem' }}>
@@ -297,8 +349,27 @@ const AperturaView = () => {
                     <h3 style={{ color: 'var(--color-primary)' }}>¡Mandamiento de Pago Generado Exitosamente!</h3>
                     <p>El documento ha sido descargado en su dispositivo (PDF).</p>
                     <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-                        <button className="btn btn-outline" style={{ color: '#d32f2f', borderColor: '#d32f2f' }} onClick={onRechazar}>Rechazar Acto</button>
-                        <button className="btn" onClick={onAprobar}>Aprobar (Notificar Multicanal)</button>
+                        {!consecutivoProceso ? (
+                            <>
+                                <button className="btn btn-outline" style={{ color: '#d32f2f', borderColor: '#d32f2f' }} onClick={onRechazar}>Rechazar Acto</button>
+                                <button className="btn" onClick={onAprobar}>Aprobar (Notificar Multicanal)</button>
+                            </>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                                <div style={{ background: '#ecfdf5', color: '#065f46', padding: '1rem', borderRadius: '8px', border: '1px solid #a7f3d0' }}>
+                                    <strong>Trámite Aprobado:</strong> El proceso tiene asignado el consecutivo <strong>{consecutivoProceso}</strong>
+                                </div>
+                                <button className="btn btn-outline" onClick={() => {
+                                    if (pdfUrl) {
+                                        window.open(pdfUrl, '_blank');
+                                    } else {
+                                        alert("El documento no está disponible para visualización.");
+                                    }
+                                }}>
+                                    Ver Mandamiento Generado
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

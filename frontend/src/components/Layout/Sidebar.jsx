@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 const navItems = [
     { path: '/', label: 'Resumen General' },
     { path: '/apertura', label: 'Apertura del Proceso' },
+    { path: '/seguimiento', label: 'Seguimiento de Procesos' },
     { path: '/embargo', label: 'Embargo y Medidas' },
     { path: '/defensa', label: 'Defensa del Deudor' },
     { path: '/ejecucion', label: 'Ejecución' },

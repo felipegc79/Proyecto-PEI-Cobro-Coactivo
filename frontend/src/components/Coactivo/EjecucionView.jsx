@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import IndicadorAsignacion from '../Shared/IndicadorAsignacion';
 
 const EjecucionView = () => {
     const [opcion, setOpcion] = useState('A');
@@ -124,6 +125,8 @@ const EjecucionView = () => {
         <div>
             <h1 className="page-title">Ejecución y Recuperación de Cartera</h1>
             <p className="page-subtitle">Seleccione el escenario a aplicar para la fase ejecutiva y el recaudo final.</p>
+
+            <IndicadorAsignacion area="Recaudos y Tesorería" funcionario="Lic. Marlene Santos" />
 
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '2.5rem' }}>
                 <button

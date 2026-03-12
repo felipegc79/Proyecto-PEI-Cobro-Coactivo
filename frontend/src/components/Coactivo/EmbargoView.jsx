@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import IndicadorAsignacion from '../Shared/IndicadorAsignacion';
 
 const EmbargoView = () => {
     const [bienes, setBienes] = useState({
@@ -59,6 +60,8 @@ const EmbargoView = () => {
         <div>
             <h1 className="page-title">Embargo y Medidas Cautelares</h1>
             <p className="page-subtitle">Formulario de identificación de bienes y solicitud de medidas preventivas.</p>
+
+            <IndicadorAsignacion area="Fiscalización / Medidas" funcionario="Dra. Leticia Torres" />
 
             <div className="card">
                 <h3 style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', marginBottom: '1.5rem' }}>
