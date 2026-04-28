@@ -5,20 +5,18 @@ import MandamientoPreview, { MandamientoPDFContent } from './GeneracionMandamien
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import IndicadorAsignacion from '../Shared/IndicadorAsignacion';
+import FichaTecnicaModal from './EstadoCuenta/FichaTecnicaModal';
 
-const AperturaView = ({ onAddProcess }) => {
+const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, userName }) => {
     const [deudorActual, setDeudorActual] = useState(null);
     const [facturasSeleccionadas, setFacturasSeleccionadas] = useState([]);
     const [mandamientoGenerado, setMandamientoGenerado] = useState(false);
     const [consecutivoProceso, setConsecutivoProceso] = useState(null);
     const [pdfUrl, setPdfUrl] = useState(null);
+    const [showFichaTecnica, setShowFichaTecnica] = useState(false);
     const pdfRef = useRef(null);
 
-    const mockFacturas = [
-        { id: 'F001', fuente: 'Predial', periodo: '2022', valor: 1500000, mora: true, estado: 'En mora' },
-        { id: 'F002', fuente: 'Predial', periodo: '2023', valor: 1600000, mora: true, estado: 'En mora' },
-        { id: 'F003', fuente: 'ICA', periodo: '2023', valor: 850000, mora: true, estado: 'En mora' },
-    ];
+    // We remove the static mockFacturas from here and derive it dynamically later
 
     const handleSelectFactura = (facturaId, isSelected) => {
         if (isSelected) {
@@ -135,24 +133,11 @@ const AperturaView = ({ onAddProcess }) => {
     const [filtroEstado, setFiltroEstado] = useState('');
     const [filtroFecha, setFiltroFecha] = useState('');
 
-    // Generador de datos simulados para la tabla (50 registros)
-    const mockProcesos = useRef(Array.from({ length: 50 }).map((_, i) => {
-        const year = 2024 + Math.floor(Math.random() * 3);
-        let month = Math.floor(Math.random() * 12) + 1;
-        if (year === 2026) month = Math.floor(Math.random() * 2) + 1;
-        const isCompany = Math.random() > 0.6;
-        const id = isCompany ? `900${Math.floor(100000 + Math.random() * 900000)}` : `${Math.floor(10000000 + Math.random() * 90000000)}`;
-        const name = isCompany ? `Empresa ${['Soluciones', 'Transporte', 'Logística', 'Comercial', 'Sistemas'][Math.floor(Math.random() * 5)]} S.A.S` : `${['Juan', 'Maria', 'Pedro', 'Diana', 'Carlos'][Math.floor(Math.random() * 5)]} ${['Perez', 'Gomez', 'Rodriguez', 'Lopez'][Math.floor(Math.random() * 4)]}`;
+    const mockProcesos = procesosExternos || [];
 
-        return {
-            id: i.toString(),
-            identificacion: id,
-            nombre: name,
-            numObligacion: `F00${Math.floor(1 + Math.random() * 900)}`,
-            estadoProceso: Math.random() > 0.5 ? 'En mora activa' : 'Apertura',
-            fechaInicio: `${year}-${month.toString().padStart(2, '0')}-${(Math.floor(Math.random() * 28) + 1).toString().padStart(2, '0')}`
-        };
-    })).current;
+    // Filtros adicionales
+    const [filtroCuantia, setFiltroCuantia] = useState('');
+    const [filtroPrescripcion, setFiltroPrescripcion] = useState('');
 
     // Filtrado lógico
     const procesosFiltrados = mockProcesos.filter(p => {
@@ -160,6 +145,8 @@ const AperturaView = ({ onAddProcess }) => {
             p.identificacion.includes(filtroIdentificacion) &&
             p.numObligacion.toLowerCase().includes(filtroObligacion.toLowerCase()) &&
             (filtroEstado === '' || p.estadoProceso === filtroEstado) &&
+            (filtroCuantia === '' || p.cuantia === filtroCuantia) &&
+            (filtroPrescripcion === '' || p.prescripcion === filtroPrescripcion) &&
             p.fechaInicio.includes(filtroFecha);
     });
 
@@ -177,21 +164,63 @@ const AperturaView = ({ onAddProcess }) => {
         setPdfUrl(null);
     };
 
+    const facturasDelDeudor = deudorActual ? [
+        { 
+            id: deudorActual.numObligacion, 
+            fuente: deudorActual.numObligacion.includes('F0') ? 'Predial' : 'ICA', 
+            periodo: '2026-1', 
+            valor: deudorActual.valor, 
+            mora: true, 
+            estado: 'En mora' 
+        }
+    ] : [];
+
     const onUploadExcel = () => {
         alert("Apertura del modal para carga masiva de archivos .xlsx / .csv (Asignar Órdenes)");
+    };
+
+    const exportToCSV = () => {
+        const headers = ["Nombre", "Identificacion", "Obligacion", "Estado", "Fecha Inicio", "Valor", "Cuantia", "Prescripcion"];
+        const rows = procesosFiltrados.map(p => [
+            `"${p.nombre}"`, 
+            p.identificacion, 
+            p.numObligacion, 
+            p.estadoProceso, 
+            p.fechaInicio, 
+            `"${p.valor.toLocaleString('es-CO')}"`, 
+            p.cuantia, 
+            p.prescripcion
+        ]);
+        
+        // Use semicolon separator for Spanish Excel and add UTF-8 BOM for correct character encoding
+        const BOM = "\uFEFF";
+        let csvContent = BOM + headers.join(";") + "\n" 
+            + rows.map(e => e.join(";")).join("\n");
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", "cartera_filtrada.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     return (
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                 <h1 className="page-title">Apertura del Proceso Coactivo</h1>
+                <button className="btn" onClick={exportToCSV} style={{ backgroundColor: '#10b981', border: 'none' }}>
+                    ⬇ Exportar Resultados a Excel (CSV)
+                </button>
             </div>
 
             <p className="page-subtitle">
                 Identifique al contribuyente, seleccione las obligaciones en mora y genere el Mandamiento de Pago.
             </p>
 
-            <IndicadorAsignacion area="Jurídica - Apertura" funcionario="Admin Coactivo" />
+            <IndicadorAsignacion area="Jurídica - Apertura" funcionario={userName || "Carlos López (Abogado Asignado)"} />
 
             {!deudorActual ? (
                 <div className="card" style={{ marginBottom: '2rem' }}>
@@ -199,26 +228,66 @@ const AperturaView = ({ onAddProcess }) => {
                         Listado de Procesos Susceptibles de Cobro
                     </h3>
 
+                    {/* Resumen de Estados */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+                        {[
+                            { estado: 'APERTURADO', color: '#3b82f6', bg: '#eff6ff', count: mockProcesos.filter(p => p.estadoProceso === 'APERTURADO').length },
+                            { estado: 'EN NOTIFICACION', color: '#f59e0b', bg: '#fffbeb', count: mockProcesos.filter(p => p.estadoProceso === 'EN NOTIFICACION').length },
+                            { estado: 'EN EJECUCION', color: '#8b5cf6', bg: '#f5f3ff', count: mockProcesos.filter(p => p.estadoProceso === 'EN EJECUCION').length },
+                            { estado: 'EN MORA', color: '#ef4444', bg: '#fef2f2', count: mockProcesos.filter(p => p.estadoProceso === 'EN MORA').length },
+                            { estado: 'EN LEVANTAMIENTO', color: '#06b6d4', bg: '#ecfeff', count: mockProcesos.filter(p => p.estadoProceso === 'EN LEVANTAMIENTO DE EMBARGO').length },
+                            { estado: 'CERRADO', color: '#10b981', bg: '#ecfdf5', count: mockProcesos.filter(p => p.estadoProceso === 'CERRADO').length },
+                            { estado: 'TOTAL', color: '#1f2937', bg: '#f3f4f6', count: mockProcesos.length },
+                        ].map((s, idx) => (
+                            <div key={idx} style={{ backgroundColor: s.bg, padding: '1rem', borderRadius: '8px', border: `1px solid ${s.color}33`, textAlign: 'center' }}>
+                                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: s.color }}>{s.count}</div>
+                                <div style={{ fontSize: '0.65rem', fontWeight: 'bold', color: '#4b5563', textTransform: 'uppercase', marginTop: '0.25rem' }}>{s.estado}</div>
+                            </div>
+                        ))}
+                    </div>
+
                     {/* Filtros UI */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '1rem', marginBottom: '1.5rem', alignItems: 'flex-end' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1rem', marginBottom: '1.5rem', alignItems: 'flex-end' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'flex-end' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Nombre del Deudor / Razón Social</label>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Nombre</label>
                             <input type="text" className="p-2" style={{ border: '1px solid #ccc', borderRadius: '4px' }} placeholder="Buscar..." value={filtroNombre} onChange={e => { setFiltroNombre(e.target.value); setPaginaActual(1); }} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'flex-end' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Número de Identificación</label>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Identificación</label>
                             <input type="text" className="p-2" style={{ border: '1px solid #ccc', borderRadius: '4px' }} placeholder="Buscar..." value={filtroIdentificacion} onChange={e => { setFiltroIdentificacion(e.target.value); setPaginaActual(1); }} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'flex-end' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Número Obligación</label>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Obligación</label>
                             <input type="text" className="p-2" style={{ border: '1px solid #ccc', borderRadius: '4px' }} placeholder="Buscar..." value={filtroObligacion} onChange={e => { setFiltroObligacion(e.target.value); setPaginaActual(1); }} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'flex-end' }}>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Cuantía</label>
+                            <select className="p-2" style={{ border: '1px solid #ccc', borderRadius: '4px' }} value={filtroCuantia} onChange={e => { setFiltroCuantia(e.target.value); setPaginaActual(1); }}>
+                                <option value="">Todas</option>
+                                <option value="Pequeña">Pequeña (&lt;$50k)</option>
+                                <option value="Media">Media ($51k-$2M)</option>
+                                <option value="Grande">Grande (&gt;$2M)</option>
+                            </select>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'flex-end' }}>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Prescripción</label>
+                            <select className="p-2" style={{ border: '1px solid #ccc', borderRadius: '4px' }} value={filtroPrescripcion} onChange={e => { setFiltroPrescripcion(e.target.value); setPaginaActual(1); }}>
+                                <option value="">Todas</option>
+                                <option value="Vigente">Vigente</option>
+                                <option value="Por Prescribir">Por Prescribir (Riesgo)</option>
+                                <option value="Prescrita">Prescrita</option>
+                            </select>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'flex-end' }}>
                             <label style={{ fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Estado del Proceso</label>
                             <select className="p-2" style={{ border: '1px solid #ccc', borderRadius: '4px' }} value={filtroEstado} onChange={e => { setFiltroEstado(e.target.value); setPaginaActual(1); }}>
                                 <option value="">Todos</option>
-                                <option value="Apertura">Apertura</option>
-                                <option value="En mora activa">En mora activa</option>
+                                <option value="APERTURADO">APERTURADO</option>
+                                <option value="EN NOTIFICACION">EN NOTIFICACION</option>
+                                <option value="EN EJECUCION">EN EJECUCION</option>
+                                <option value="EN MORA">EN MORA</option>
+                                <option value="EN LEVANTAMIENTO DE EMBARGO">EN LEVANTAMIENTO DE EMBARGO</option>
+                                <option value="CERRADO">CERRADO</option>
                             </select>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'flex-end' }}>
@@ -231,11 +300,13 @@ const AperturaView = ({ onAddProcess }) => {
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', backgroundColor: '#fafafa', borderRadius: 'var(--radius-sm)' }}>
                             <thead>
                                 <tr style={{ borderBottom: '2px solid var(--color-border)', backgroundColor: '#efefef' }}>
-                                    <th style={{ padding: '1rem' }}>Nombre del Deudor / Razón Social</th>
-                                    <th style={{ padding: '1rem' }}>Número de Identificación</th>
-                                    <th style={{ padding: '1rem' }}>Número Obligación</th>
-                                    <th style={{ padding: '1rem' }}>Estado del Proceso</th>
-                                    <th style={{ padding: '1rem' }}>Fecha de Inicio</th>
+                                    <th style={{ padding: '1rem' }}>Nombre</th>
+                                    <th style={{ padding: '1rem' }}>Identificación</th>
+                                    <th style={{ padding: '1rem' }}>Obligación</th>
+                                    <th style={{ padding: '1rem' }}>Cuantía</th>
+                                    <th style={{ padding: '1rem' }}>Prescripción</th>
+                                    <th style={{ padding: '1rem' }}>Estado</th>
+                                    <th style={{ padding: '1rem' }}>Fecha Inicio</th>
                                     <th style={{ padding: '1rem' }}>Acciones</th>
                                 </tr>
                             </thead>
@@ -245,17 +316,49 @@ const AperturaView = ({ onAddProcess }) => {
                                         <td style={{ padding: '1rem', fontWeight: '500' }}>{proceso.nombre}</td>
                                         <td style={{ padding: '1rem' }}>{proceso.identificacion}</td>
                                         <td style={{ padding: '1rem' }}>{proceso.numObligacion}</td>
-                                        <td style={{ padding: '1rem', color: proceso.estadoProceso === 'En mora activa' ? '#d32f2f' : '#f59e0b', fontWeight: '600' }}>
-                                            {proceso.estadoProceso}
+                                        <td style={{ padding: '1rem' }}>
+                                            <span style={{ 
+                                                backgroundColor: proceso.cuantia === 'Grande' ? '#fee2e2' : proceso.cuantia === 'Media' ? '#fef3c7' : '#ecfdf5',
+                                                color: proceso.cuantia === 'Grande' ? '#991b1b' : proceso.cuantia === 'Media' ? '#92400e' : '#065f46',
+                                                padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold'
+                                            }}>{proceso.cuantia}</span>
+                                        </td>
+                                        <td style={{ padding: '1rem' }}>
+                                            <span style={{ 
+                                                backgroundColor: proceso.prescripcion === 'Prescrita' ? '#f3f4f6' : proceso.prescripcion === 'Por Prescribir' ? '#fee2e2' : '#ecfdf5',
+                                                color: proceso.prescripcion === 'Prescrita' ? '#374151' : proceso.prescripcion === 'Por Prescribir' ? '#dc2626' : '#059669',
+                                                padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold'
+                                            }}>{proceso.prescripcion}</span>
+                                        </td>
+                                        <td style={{ padding: '1rem', fontWeight: '600' }}>
+                                            <span style={{ 
+                                                color: proceso.estadoProceso === 'APERTURADO' ? '#3b82f6' :
+                                                       proceso.estadoProceso === 'EN NOTIFICACION' ? '#f59e0b' :
+                                                       proceso.estadoProceso === 'EN EJECUCION' ? '#8b5cf6' :
+                                                       proceso.estadoProceso === 'EN MORA' ? '#ef4444' :
+                                                       proceso.estadoProceso === 'EN LEVANTAMIENTO DE EMBARGO' ? '#06b6d4' :
+                                                       '#10b981'
+                                            }}>
+                                                {proceso.estadoProceso}
+                                            </span>
                                         </td>
                                         <td style={{ padding: '1rem' }}>{proceso.fechaInicio}</td>
-                                        <td style={{ padding: '1rem' }}>
+                                        <td style={{ padding: '1rem', display: 'flex', gap: '0.5rem' }}>
                                             <button
                                                 className="btn btn-outline"
                                                 onClick={() => onVerObligaciones(proceso)}
                                                 style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem' }}
+                                                title="Generar Mandamiento"
                                             >
-                                                Ver Obligaciones en Mora
+                                                Ver
+                                            </button>
+                                            <button
+                                                className="btn"
+                                                onClick={() => { setDeudorActual(proceso); setShowFichaTecnica(true); }}
+                                                style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem', backgroundColor: '#059669', border: 'none' }}
+                                                title="Ficha Técnica"
+                                            >
+                                                Ficha
                                             </button>
                                         </td>
                                     </tr>
@@ -315,7 +418,7 @@ const AperturaView = ({ onAddProcess }) => {
                     </div>
 
                     <FacturasList
-                        facturas={mockFacturas}
+                        facturas={facturasDelDeudor}
                         seleccionadas={facturasSeleccionadas}
                         onSelect={handleSelectFactura}
                     />
@@ -336,9 +439,9 @@ const AperturaView = ({ onAddProcess }) => {
                     <MandamientoPDFContent
                         ref={pdfRef}
                         deudor={deudorActual}
-                        facturas={mockFacturas.filter(f => facturasSeleccionadas.includes(f.id))}
+                        facturas={facturasDelDeudor.filter(f => facturasSeleccionadas.includes(f.id))}
                         resolucionNum={`RES-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000) + 1000}`}
-                        totalDeuda={mockFacturas.filter(f => facturasSeleccionadas.includes(f.id)).reduce((a, b) => a + b.valor, 0)}
+                        totalDeuda={facturasDelDeudor.filter(f => facturasSeleccionadas.includes(f.id)).reduce((a, b) => a + b.valor, 0)}
                         fechaFormat={`${new Date().getDate()} de ${new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(new Date())} de ${new Date().getFullYear()}`}
                     />
                 </div>
@@ -380,6 +483,14 @@ const AperturaView = ({ onAddProcess }) => {
                     <h3>Historial de Procesos Previos</h3>
                     <p>Módulo en construcción...</p>
                 </div>
+            )}
+            {/* Modal Ficha Técnica */}
+            {showFichaTecnica && (
+                <FichaTecnicaModal 
+                    deudor={deudorActual} 
+                    facturas={facturasDelDeudor} 
+                    onClose={() => { setShowFichaTecnica(false); setDeudorActual(null); }} 
+                />
             )}
         </div>
     );

@@ -1,72 +1,86 @@
 import React, { useState } from 'react';
 
-const DashboardView = () => {
+const DashboardView = ({ procesosExternos = [] }) => {
     const [filtroMes, setFiltroMes] = useState('Todos');
-    const [filtroAno, setFiltroAno] = useState('2026');
+    const [filtroAno, setFiltroAno] = useState('Todos'); // El mock de App usa años dinámicos
     const [modalData, setModalData] = useState(null);
 
-    // Dynamic data based on filters
-    const getMockData = (ano, mes) => {
-        let multiplier = 1;
-        if (ano === '2025') multiplier *= 0.8;
-        if (ano === '2024') multiplier *= 0.5;
-
-        if (mes !== 'Todos') {
-            // Cada mes debe representar una fracción realista del total anual (aprox 8% - 14%)
+    // Filtrar los procesos por el año y mes seleccionado (simulado para este dashboard si se desea, o usar todos si es "Todos")
+    const procesosFiltrados = procesosExternos.filter(p => {
+        const pYear = p.fechaInicio.substring(0, 4);
+        const pMonth = parseInt(p.fechaInicio.substring(5, 7), 10);
+        
+        if (filtroAno !== 'Todos' && pYear !== filtroAno) return false;
+        
+        if (filtroMes !== 'Todos') {
             const monthMap = {
-                Enero: 0.11, Febrero: 0.09, Marzo: 0.13, Abril: 0.10,
-                Mayo: 0.085, Junio: 0.12, Julio: 0.095, Agosto: 0.105,
-                Septiembre: 0.115, Octubre: 0.08, Noviembre: 0.125, Diciembre: 0.14
+                Enero: 1, Febrero: 2, Marzo: 3, Abril: 4, Mayo: 5, Junio: 6,
+                Julio: 7, Agosto: 8, Septiembre: 9, Octubre: 10, Noviembre: 11, Diciembre: 12
             };
-            multiplier *= (monthMap[mes] || 1);
+            if (pMonth !== monthMap[filtroMes]) return false;
         }
+        return true;
+    });
 
-        return {
-            kpis: [
-                { label: 'Total Procesos', value: Math.floor(342 * multiplier), dinero: `$ ${(Math.floor(342 * multiplier) * 4500000).toLocaleString('de-DE')}`, bg: '#eef2ff', color: '#4f46e5' },
-                { label: 'Procesos Abiertos', value: Math.floor(156 * multiplier), dinero: `$ ${(Math.floor(156 * multiplier) * 4500000).toLocaleString('de-DE')}`, bg: '#f0fdf4', color: '#16a34a' },
-                { label: 'En Reclamación', value: Math.floor(45 * multiplier), dinero: `$ ${(Math.floor(45 * multiplier) * 4500000).toLocaleString('de-DE')}`, bg: '#fffbeb', color: '#d97706' },
-                { label: 'Procesos Cerrados', value: Math.floor(141 * multiplier), dinero: `$ ${(Math.floor(141 * multiplier) * 4500000).toLocaleString('de-DE')}`, bg: '#f3f4f6', color: '#4b5563' }
-            ],
-            chartData: [
-                { estado: 'Apertura', conteo: Math.floor(80 * multiplier), color: '#6366f1' },
-                { estado: 'Embargo', conteo: Math.floor(45 * multiplier), color: '#ec4899' },
-                { estado: 'Defensa', conteo: Math.floor(31 * multiplier), color: '#f59e0b' },
-                { estado: 'Ejecución', conteo: Math.floor(186 * multiplier), color: '#10b981' }
-            ]
-        };
+    const sumValores = (procesos) => procesos.reduce((acc, p) => acc + p.valor, 0);
+
+    const procesosActivos = procesosFiltrados.filter(p => ['APERTURADO', 'EN NOTIFICACION', 'EN EJECUCION', 'EN MORA'].includes(p.estadoProceso));
+    const procesosLevantamiento = procesosFiltrados.filter(p => p.estadoProceso === 'EN LEVANTAMIENTO DE EMBARGO');
+    const procesosCerrados = procesosFiltrados.filter(p => p.estadoProceso === 'CERRADO');
+
+    const currentData = {
+        kpis: [
+            { label: 'Total Procesos', value: procesosFiltrados.length, dinero: `$ ${sumValores(procesosFiltrados).toLocaleString('es-CO')}`, bg: '#eef2ff', color: '#4f46e5' },
+            { label: 'Procesos Activos', value: procesosActivos.length, dinero: `$ ${sumValores(procesosActivos).toLocaleString('es-CO')}`, bg: '#fef2f2', color: '#ef4444' },
+            { label: 'En Levantamiento', value: procesosLevantamiento.length, dinero: `$ ${sumValores(procesosLevantamiento).toLocaleString('es-CO')}`, bg: '#ecfeff', color: '#06b6d4' },
+            { label: 'Procesos Cerrados', value: procesosCerrados.length, dinero: `$ ${sumValores(procesosCerrados).toLocaleString('es-CO')}`, bg: '#ecfdf5', color: '#10b981' }
+        ],
+        chartData: [
+            { estado: 'Aperturado', rawEstado: 'APERTURADO', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'APERTURADO').length, color: '#3b82f6' },
+            { estado: 'En Notificac.', rawEstado: 'EN NOTIFICACION', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'EN NOTIFICACION').length, color: '#f59e0b' },
+            { estado: 'En Ejecución', rawEstado: 'EN EJECUCION', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'EN EJECUCION').length, color: '#8b5cf6' },
+            { estado: 'En Mora', rawEstado: 'EN MORA', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'EN MORA').length, color: '#ef4444' },
+            { estado: 'Levantamiento', rawEstado: 'EN LEVANTAMIENTO DE EMBARGO', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'EN LEVANTAMIENTO DE EMBARGO').length, color: '#06b6d4' },
+            { estado: 'Cerrado', rawEstado: 'CERRADO', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'CERRADO').length, color: '#10b981' }
+        ]
     };
 
-    const currentData = getMockData(filtroAno, filtroMes);
     const kpis = currentData.kpis;
     const chartData = currentData.chartData;
     const maxValue = Math.max(...chartData.map(d => d.conteo), 1);
 
-    const generateTableData = (title, count) => {
-        const data = [];
-        const nombres = ['Juan Pérez', 'María Gómez', 'Carlos López', 'Ana Martínez', 'Luis Rodríguez', 'Laura García', 'Marta Sánchez', 'Jorge Díaz'];
-        for (let i = 0; i < count; i++) {
-            let estadoAleatorio;
-            if (title === 'Total Procesos') {
-                const estados = ['Abierto', 'En reclamación', 'Cerrado'];
-                estadoAleatorio = estados[Math.floor(Math.random() * estados.length)];
+    const generateTableData = (title, count, rawEstado) => {
+        // En lugar de generar al azar, usamos los datos reales si corresponden al título
+        let datosAUsar = procesosFiltrados;
+        
+        if (title.includes('Total')) datosAUsar = procesosFiltrados;
+        else if (title.includes('Activos')) datosAUsar = procesosActivos;
+        else if (title.includes('Levantamiento')) datosAUsar = procesosLevantamiento;
+        else if (title.includes('Cerrados')) datosAUsar = procesosCerrados;
+        else if (title.includes('Estado:')) {
+            if (rawEstado) {
+                datosAUsar = procesosFiltrados.filter(p => p.estadoProceso === rawEstado);
             } else {
-                estadoAleatorio = title.includes('Notificaci') || title.includes('procesos') || title.includes('Acuerdos') ? 'Reportado' : title.replace('Estado: ', '');
+                let estadoName = title.replace('Estado: ', '').toUpperCase();
+                estadoName = estadoName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\./g, "");
+                datosAUsar = procesosFiltrados.filter(p => p.estadoProceso.includes(estadoName));
             }
-
-            data.push({
-                id: `PRC-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
-                deudor: nombres[Math.floor(Math.random() * nombres.length)],
-                estado: estadoAleatorio,
-                fecha: `2026-0${Math.floor(Math.random() * 4) + 1}-${Math.floor(Math.random() * 28) + 1}`,
-                valor: `$ ${Math.floor(Math.random() * 5000000 + 500000).toLocaleString('de-DE')}`
-            });
+        } else {
+            // Notificaciones Recientes (mock)
+            datosAUsar = [];
         }
-        return data;
+
+        return datosAUsar.map(p => ({
+            id: p.consecutivo,
+            deudor: p.nombre,
+            estado: p.estadoProceso,
+            fecha: p.fechaInicio,
+            valor: `$ ${p.valor.toLocaleString('es-CO')}`
+        }));
     };
 
-    const handleItemClick = (title, count) => {
-        const dataRows = generateTableData(title, Math.min(count, 100)); // Límite de 100 para no sobrecargar el navegador
+    const handleItemClick = (title, count, rawEstado = null) => {
+        const dataRows = generateTableData(title, Math.min(count, 100), rawEstado); // Límite de 100 para no sobrecargar el navegador
         setModalData({ title, count, rows: dataRows });
     };
 
@@ -165,9 +179,15 @@ const DashboardView = () => {
                             value={filtroAno}
                             onChange={(e) => setFiltroAno(e.target.value)}
                         >
+                            <option value="Todos">Todos los años</option>
                             <option value="2026">2026</option>
                             <option value="2025">2025</option>
                             <option value="2024">2024</option>
+                            <option value="2023">2023</option>
+                            <option value="2022">2022</option>
+                            <option value="2021">2021</option>
+                            <option value="2020">2020</option>
+                            <option value="2019">2019</option>
                         </select>
                     </div>
 
@@ -238,7 +258,7 @@ const DashboardView = () => {
                                 >
                                     <div style={{ marginBottom: '0.5rem', fontWeight: 'bold', color: 'var(--color-text)' }}>{data.conteo}</div>
                                     <div
-                                        onClick={() => handleItemClick(`Estado: ${data.estado}`, data.conteo)}
+                                        onClick={() => handleItemClick(`Estado: ${data.estado}`, data.conteo, data.rawEstado)}
                                         style={{
                                             width: '60%',
                                             height: `${heightPercentage}%`,

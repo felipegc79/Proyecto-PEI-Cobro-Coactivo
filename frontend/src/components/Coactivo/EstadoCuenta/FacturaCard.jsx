@@ -57,28 +57,28 @@ const FacturaCard = ({ factura, isSelected, onSelect }) => {
                             boxShadow: 'var(--shadow-md)',
                             borderRadius: 'var(--radius-sm)',
                             zIndex: 10,
-                            minWidth: '150px',
+                            minWidth: '220px',
                             border: '1px solid var(--color-border)',
                             display: 'flex',
                             flexDirection: 'column'
                         }}>
                             <button
                                 className="dropdown-item"
-                                style={{ padding: '0.75rem 1rem', border: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer', borderBottom: '1px solid #f0f0f0' }}
+                                style={{ padding: '0.75rem 1rem', border: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' }}
                                 onClick={() => { setModalPreview(true); setDropdownOpen(false); }}
                             >
                                 Previsualizar Factura
                             </button>
                             <button
                                 className="dropdown-item"
-                                style={{ padding: '0.75rem 1rem', border: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer', borderBottom: '1px solid #f0f0f0' }}
+                                style={{ padding: '0.75rem 1rem', border: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' }}
                                 onClick={() => { setModalDetalle(true); setDropdownOpen(false); }}
                             >
                                 Ver Detalle
                             </button>
                             <button
                                 className="dropdown-item"
-                                style={{ padding: '0.75rem 1rem', border: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer', color: '#d32f2f' }}
+                                style={{ padding: '0.75rem 1rem', border: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer', color: '#d32f2f', whiteSpace: 'nowrap' }}
                                 onClick={() => setDropdownOpen(false)}
                             >
                                 Cerrar Menú

@@ -8,6 +8,7 @@ const navItems = [
     { path: '/defensa', label: 'Defensa del Deudor' },
     { path: '/ejecucion', label: 'Ejecución' },
     { path: '/cierre', label: 'Cierre del Proceso' },
+    { path: '/carga-masiva', label: 'Actualización Masiva' },
 ];
 
 const Sidebar = () => {

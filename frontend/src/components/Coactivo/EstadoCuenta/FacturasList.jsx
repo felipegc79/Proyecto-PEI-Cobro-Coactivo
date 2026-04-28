@@ -14,7 +14,9 @@ const FacturasList = ({ facturas, seleccionadas, onSelect }) => {
                 style={{
                     maxHeight: '400px',
                     overflowY: 'auto',
-                    paddingRight: '0.5rem'
+                    overflowX: 'visible',
+                    paddingRight: '0.5rem',
+                    paddingBottom: '10rem'
                 }}
             >
                 {facturas.map(factura => (

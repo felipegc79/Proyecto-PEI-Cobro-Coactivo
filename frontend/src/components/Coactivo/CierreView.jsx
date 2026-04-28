@@ -3,7 +3,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import IndicadorAsignacion from '../Shared/IndicadorAsignacion';
 
-const CierreView = () => {
+const CierreView = ({ userName }) => {
     const [motivo, setMotivo] = useState('');
 
     const pazYSalvoRef = useRef(null);
@@ -62,7 +62,7 @@ const CierreView = () => {
             <h1 className="page-title">Cierre Normativo del Proceso</h1>
             <p className="page-subtitle">Paso final: Archivo documental y eventual generación de certificados para deudores solventes o cartera depurada.</p>
 
-            <IndicadorAsignacion area="Comité de Cartera / Cierres" funcionario="Dr. Felipe Guzmán" />
+            <IndicadorAsignacion area="Comité de Cartera / Cierres" funcionario={userName || "Dr. Felipe Guzmán"} />
 
             <div className="card">
                 <h3 style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', marginBottom: '1.5rem' }}>

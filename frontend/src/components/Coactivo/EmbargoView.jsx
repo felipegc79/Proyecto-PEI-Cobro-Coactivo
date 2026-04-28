@@ -2,15 +2,23 @@ import React, { useState, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import IndicadorAsignacion from '../Shared/IndicadorAsignacion';
+import { FileText, Mail, Send } from 'lucide-react';
 
-const EmbargoView = () => {
+const EmbargoView = ({ userName }) => {
+    const [activeMainTab, setActiveMainTab] = useState('embargo'); // 'embargo' | 'levantamiento'
     const [bienes, setBienes] = useState({
         salarios: { fecha: '', empresa: '', valor: '' },
         bancarios: { fecha: '', entidad: '', saldo: '' },
         bienes: { tipo: 'Inmueble', antiguedad: '', avaluado: '' }
     });
-
     const pdfRef = useRef(null);
+    const levantamientoPdfRef = useRef(null);
+
+    const [mockPagados] = useState([
+        { id: 1, consecutivo: 'CC-2023-102', nombre: 'MARIA AMPARO ORTIZ DAVID', identificacion: '43059073', telefono: '31229111078', predio: '01-02-0000', matricula: '001-123', fechaPago: '2021-07-02' },
+        { id: 2, consecutivo: 'CC-2024-055', nombre: 'Empresa XYZ', identificacion: '900987654', telefono: '3001112233', predio: '03-04-5555', matricula: '002-444', fechaPago: '2024-03-15' },
+    ]);
+    const [selectedParaLevantamiento, setSelectedParaLevantamiento] = useState(null);
 
     const handleGenerarSolicitud = () => {
         if (pdfRef.current) {
@@ -33,6 +41,37 @@ const EmbargoView = () => {
                 pdfRef.current.style.zIndex = '-1';
             });
         }
+    };
+
+    const handleGenerarLevantamiento = (proceso) => {
+        setSelectedParaLevantamiento(proceso);
+        setTimeout(() => {
+            if (levantamientoPdfRef.current) {
+                levantamientoPdfRef.current.style.position = 'absolute';
+                levantamientoPdfRef.current.style.top = '0px';
+                levantamientoPdfRef.current.style.left = '0px';
+                levantamientoPdfRef.current.style.zIndex = '9999';
+
+                html2canvas(levantamientoPdfRef.current, { scale: 2 }).then((canvas) => {
+                    const imgData = canvas.toDataURL('image/jpeg', 0.98);
+                    const pdf = new jsPDF('p', 'mm', 'a4');
+                    const pdfWidth = pdf.internal.pageSize.getWidth();
+                    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+                    pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                    pdf.save(`Resolucion_Levantamiento_${proceso.identificacion}.pdf`);
+
+                    levantamientoPdfRef.current.style.top = '-10000px';
+                    levantamientoPdfRef.current.style.left = '-10000px';
+                    levantamientoPdfRef.current.style.zIndex = '-1';
+                    setSelectedParaLevantamiento(null);
+                });
+            }
+        }, 500);
+    };
+
+    const handleEnviarCorreoLevantamiento = (proceso) => {
+        alert(`Resolución de Levantamiento enviada al correo registrado de ${proceso.nombre}`);
     };
 
     const [archivosCargados, setArchivosCargados] = useState([]);
@@ -61,12 +100,31 @@ const EmbargoView = () => {
             <h1 className="page-title">Embargo y Medidas Cautelares</h1>
             <p className="page-subtitle">Formulario de identificación de bienes y solicitud de medidas preventivas.</p>
 
-            <IndicadorAsignacion area="Fiscalización / Medidas" funcionario="Dra. Leticia Torres" />
+            <IndicadorAsignacion area="Fiscalización / Medidas" funcionario={userName || "Dra. Leticia Torres"} />
 
-            <div className="card">
-                <h3 style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', marginBottom: '1.5rem' }}>
-                    1. Identificación de Bienes
-                </h3>
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+                <button
+                    className={`btn ${activeMainTab === 'embargo' ? '' : 'btn-outline'}`}
+                    onClick={() => setActiveMainTab('embargo')}
+                    style={{ padding: '0.75rem 1.5rem', flex: 1 }}
+                >
+                    Solicitud de Embargo
+                </button>
+                <button
+                    className={`btn ${activeMainTab === 'levantamiento' ? '' : 'btn-outline'}`}
+                    onClick={() => setActiveMainTab('levantamiento')}
+                    style={{ padding: '0.75rem 1.5rem', flex: 1 }}
+                >
+                    Levantamiento de Medidas (100% Pagados)
+                </button>
+            </div>
+
+            {activeMainTab === 'embargo' && (
+                <>
+                    <div className="card">
+                        <h3 style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', marginBottom: '1.5rem' }}>
+                            1. Identificación de Bienes
+                        </h3>
 
                 <div style={{ marginBottom: '2rem' }}>
                     <h4 style={{ color: 'var(--color-primary)', marginBottom: '1rem' }}>Salarios</h4>
@@ -210,11 +268,130 @@ const EmbargoView = () => {
                 </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2rem' }}>
-                <button className="btn" onClick={handleGenerarSolicitud} style={{ padding: '0.75rem 2rem', fontSize: '1.1rem' }}>
-                    Generar Solicitud de Embargo (PDF)
-                </button>
-            </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2rem' }}>
+                        <button className="btn" onClick={handleGenerarSolicitud} style={{ padding: '0.75rem 2rem', fontSize: '1.1rem' }}>
+                            Generar Solicitud de Embargo (PDF)
+                        </button>
+                    </div>
+                </>
+            )}
+
+            {activeMainTab === 'levantamiento' && (
+                <div className="card">
+                    <h3 style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', marginBottom: '1.5rem' }}>
+                        Procesos con Obligación Pagada al 100%
+                    </h3>
+                    <p style={{ color: 'var(--color-text-light)', marginBottom: '1.5rem' }}>
+                        Los siguientes procesos han cumplido con el total de la obligación y son aptos para el levantamiento de medidas cautelares.
+                    </p>
+
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                        <thead>
+                            <tr style={{ backgroundColor: '#efefef', borderBottom: '2px solid #ccc' }}>
+                                <th style={{ padding: '1rem' }}>Consecutivo</th>
+                                <th style={{ padding: '1rem' }}>Contribuyente</th>
+                                <th style={{ padding: '1rem' }}>Identificación</th>
+                                <th style={{ padding: '1rem' }}>Matrícula Inmobiliaria</th>
+                                <th style={{ padding: '1rem' }}>Fecha de Pago Total</th>
+                                <th style={{ padding: '1rem' }}>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {mockPagados.map(p => (
+                                <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
+                                    <td style={{ padding: '1rem', fontWeight: 'bold' }}>{p.consecutivo}</td>
+                                    <td style={{ padding: '1rem' }}>{p.nombre}</td>
+                                    <td style={{ padding: '1rem' }}>{p.identificacion}</td>
+                                    <td style={{ padding: '1rem' }}>{p.matricula}</td>
+                                    <td style={{ padding: '1rem' }}>{p.fechaPago}</td>
+                                    <td style={{ padding: '1rem' }}>
+                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                            <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }} onClick={() => handleGenerarLevantamiento(p)}>
+                                                <FileText size={14} /> Generar Resolución
+                                            </button>
+                                            <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }} onClick={() => handleEnviarCorreoLevantamiento(p)}>
+                                                <Send size={14} /> Enviar
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+
+                    <div style={{ position: 'absolute', top: '-10000px', left: '-10000px', zIndex: -1 }}>
+                        <div ref={levantamientoPdfRef} style={{ padding: '60px 80px', fontFamily: 'Arial, sans-serif', color: '#000', backgroundColor: 'white', width: '800px', minHeight: '1100px' }}>
+                            {selectedParaLevantamiento && (
+                                <>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                                            <div style={{ width: '80px', height: '80px', border: '1px solid #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>[Escudo]</div>
+                                            <div>
+                                                <h1 style={{ margin: 0, fontSize: '24px' }}>ALCALDÍA</h1>
+                                                <h1 style={{ margin: 0, fontSize: '36px', fontWeight: 'bold' }}>ANDES</h1>
+                                                <p style={{ margin: 0, fontSize: '10px' }}>Alianza por el Desarrollo Humano</p>
+                                            </div>
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <div style={{ background: '#333', color: 'white', padding: '10px', display: 'inline-block' }}>
+                                                <strong>Alianza por la Transparencia</strong>
+                                                <br />Secretaría de Hacienda
+                                            </div>
+                                            <p style={{ margin: '10px 0 0 0', fontWeight: 'bold' }}>130-05-05-3661</p>
+                                        </div>
+                                    </div>
+
+                                    <p style={{ marginBottom: '30px' }}>Andes, de {new Date().toLocaleDateString('es-CO')}</p>
+                                    
+                                    <p style={{ margin: 0 }}>Señora</p>
+                                    <p style={{ margin: 0, fontWeight: 'bold' }}>{selectedParaLevantamiento.nombre}</p>
+                                    <p style={{ margin: 0 }}>N° DE IDENTIFICACION: {selectedParaLevantamiento.identificacion}</p>
+                                    <p style={{ margin: 0 }}>TELEFONO: {selectedParaLevantamiento.telefono}</p>
+
+                                    <div style={{ marginTop: '50px', marginBottom: '30px' }}>
+                                        <p><strong>ASUNTO: Contestación de Solicitud de levantamiento de medida cautelar de embargo.</strong></p>
+                                    </div>
+
+                                    <p style={{ textAlign: 'justify', lineHeight: '1.5' }}>
+                                        El día {new Date().toLocaleDateString('es-CO')} en el despacho de la Secretaría de Hacienda del Municipio de Andes Antioquia, en la dirección Calle Arboleda Nro 49a 39, se hizo verbalmente una solicitud en la cual se requiere a este despacho para que realice los trámites pertinentes para realizar el levantamiento de medida cautelar de embargo por concepto impuesto predial (Predio {selectedParaLevantamiento.predio}, Matrícula {selectedParaLevantamiento.matricula}), habiendo verificado el pago total de la obligación el día {selectedParaLevantamiento.fechaPago}.
+                                    </p>
+
+                                    <p style={{ textAlign: 'justify', lineHeight: '1.5', marginTop: '20px' }}>
+                                        La Secretaría de Hacienda del Municipio de Andes, le informa, que ante la Oficina de Registro e Instrumento Públicos se llevó a cabo el trámite de levantamiento de medida cautelar de embargo el día {new Date().toLocaleDateString('es-CO')}, mediante el oficio N° 130-05-05-3660 del {new Date().toLocaleDateString('es-CO')}.
+                                    </p>
+
+                                    <div style={{ marginTop: '50px' }}>
+                                        <p style={{ margin: 0 }}><strong>ANEXOS</strong></p>
+                                        <ul style={{ marginTop: '10px' }}>
+                                            <li>Copia del oficio N° 130-05-05-3660 del {new Date().toLocaleDateString('es-CO')}</li>
+                                        </ul>
+                                    </div>
+
+                                    <div style={{ marginTop: '60px' }}>
+                                        <p style={{ margin: 0 }}>Atentamente</p>
+                                        
+                                        <div style={{ marginTop: '60px', borderTop: '1px solid #000', width: '300px', paddingTop: '5px' }}>
+                                            <p style={{ margin: 0 }}><strong>VALENTINA MUNERA CAÑAS</strong></p>
+                                            <p style={{ margin: 0 }}>SECRETARIA DE HACIENDA</p>
+                                        </div>
+
+                                        <div style={{ marginTop: '40px', fontSize: '10px' }}>
+                                            <p style={{ margin: 0 }}>PROYECTA: GLORIA YASMIN GUTIERREZ CORREA</p>
+                                            <p style={{ margin: 0 }}>CARGO: ABOGADA COBRO COACTIVO</p>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ position: 'absolute', bottom: '60px', right: '80px', fontSize: '10px', textAlign: 'right', borderLeft: '1px solid #000', paddingLeft: '10px' }}>
+                                        <p style={{ margin: 0 }}>Calle Arboleda N° 49A - 39 | Palacio Municipal</p>
+                                        <p style={{ margin: 0 }}>hacienda@andes-antioquia.gov.co</p>
+                                        <p style={{ margin: 0 }}>Conmutador: 841 41 01 | Fax: 841 45 90</p>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
