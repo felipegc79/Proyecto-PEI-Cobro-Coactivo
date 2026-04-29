@@ -6,23 +6,25 @@ import IndicadorAsignacion from '../Shared/IndicadorAsignacion';
 const EjecucionView = ({ procesosExternos, userRole, userName }) => {
     const [opcion, setOpcion] = useState('A');
     const [viewAcuerdos, setViewAcuerdos] = useState('list'); // 'list' | 'detail'
-    const [subTab, setSubTab] = useState('generales'); // 'generales' | 'aprobacion' | 'rechazados'
+    const [subTab, setSubTab] = useState('generales'); // 'generales' | 'aprobacion' | 'Incumplidos'
     const [filtroAcuerdosId, setFiltroAcuerdosId] = useState('');
     
-    const [acuerdosMock, setAcuerdosMock] = useState(() => {
-        return (procesosExternos || []).map((p, index) => ({
+    const [acuerdosMock, setAcuerdosMock] = useState([]);
+
+    React.useEffect(() => {
+        setAcuerdosMock((procesosExternos || []).map((p, index) => ({
             id: p.id,
             consecutivo: p.consecutivo,
             identificacion: p.identificacion,
             nombre: p.nombre,
-            estado: index % 3 === 0 ? 'Borrador' : (index % 3 === 1 ? 'Aprobado' : 'Rechazado'),
+            estado: index % 3 === 0 ? 'Borrador' : (index % 3 === 1 ? 'Aprobado' : 'Incumplido'),
             cuotasVencidas: index % 5 === 0 ? 2 : 0,
             deudaTotal: p.valor || 5000000,
             cuotaInicial: (p.valor || 5000000) * 0.2,
             tasaMora: 2.5,
             plazo: 12
-        }));
-    });
+        })));
+    }, [procesosExternos]);
 
     const [acuerdoActual, setAcuerdoActual] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -145,13 +147,13 @@ const EjecucionView = ({ procesosExternos, userRole, userName }) => {
     };
 
     const handleEditar = () => {
-        if (acuerdoActual && (acuerdoActual.estado === 'Borrador' || acuerdoActual.estado === 'Rechazado')) {
+        if (acuerdoActual && (acuerdoActual.estado === 'Borrador' || acuerdoActual.estado === 'Incumplido')) {
             setIsEditing(true);
         }
     };
 
     const handleEliminar = () => {
-        if (acuerdoActual && (acuerdoActual.estado === 'Borrador' || acuerdoActual.estado === 'Rechazado')) {
+        if (acuerdoActual && (acuerdoActual.estado === 'Borrador' || acuerdoActual.estado === 'Incumplido')) {
             if (window.confirm('¿Está seguro de eliminar este registro?')) {
                 setAcuerdosMock(prev => prev.filter(a => a.id !== acuerdoActual.id));
                 handleRetornar();
@@ -192,8 +194,8 @@ const EjecucionView = ({ procesosExternos, userRole, userName }) => {
             alert('Acuerdo guardado exitosamente. Estado: Borrador.');
         } else if (nuevoEstado === 'Aprobado') {
             alert('Acuerdo Aprobado exitosamente.');
-        } else if (nuevoEstado === 'Rechazado') {
-            alert('Acuerdo Rechazado.');
+        } else if (nuevoEstado === 'Incumplido') {
+            alert('Acuerdo Incumplido.');
         }
     };
 
@@ -235,8 +237,8 @@ const EjecucionView = ({ procesosExternos, userRole, userName }) => {
         acuerdosFiltrados = acuerdosMock.filter(a => a.estado === 'Aprobado' || a.estado === 'Cancelado');
     } else if (subTab === 'aprobacion') {
         acuerdosFiltrados = acuerdosMock.filter(a => a.estado === 'Borrador');
-    } else if (subTab === 'rechazados') {
-        acuerdosFiltrados = acuerdosMock.filter(a => a.estado === 'Rechazado');
+    } else if (subTab === 'Incumplidos') {
+        acuerdosFiltrados = acuerdosMock.filter(a => a.estado === 'Incumplido');
     }
 
     if (filtroAcuerdosId) {
@@ -286,25 +288,29 @@ const EjecucionView = ({ procesosExternos, userRole, userName }) => {
                         >
                             Consultas Generales
                         </button>
+                        {(userRole === 'Secretario de Hacienda' || userRole === 'Administrador') && (
+                            <button 
+                                style={{ padding: '0.5rem 1rem', background: subTab === 'aprobacion' ? 'var(--color-primary)' : 'transparent', color: subTab === 'aprobacion' ? 'white' : 'var(--color-text)', border: 'none', borderRadius: '4px 4px 0 0', cursor: 'pointer', fontWeight: 'bold' }}
+                                onClick={() => setSubTab('aprobacion')}
+                            >
+                                Aprobación de Acuerdos
+                            </button>
+                        )}
                         <button 
-                            style={{ padding: '0.5rem 1rem', background: subTab === 'aprobacion' ? 'var(--color-primary)' : 'transparent', color: subTab === 'aprobacion' ? 'white' : 'var(--color-text)', border: 'none', borderRadius: '4px 4px 0 0', cursor: 'pointer', fontWeight: 'bold' }}
-                            onClick={() => setSubTab('aprobacion')}
+                            style={{ padding: '0.5rem 1rem', background: subTab === 'Incumplidos' ? 'var(--color-primary)' : 'transparent', color: subTab === 'Incumplidos' ? 'white' : 'var(--color-text)', border: 'none', borderRadius: '4px 4px 0 0', cursor: 'pointer', fontWeight: 'bold' }}
+                            onClick={() => setSubTab('Incumplidos')}
                         >
-                            Aprobación de Acuerdos
-                        </button>
-                        <button 
-                            style={{ padding: '0.5rem 1rem', background: subTab === 'rechazados' ? 'var(--color-primary)' : 'transparent', color: subTab === 'rechazados' ? 'white' : 'var(--color-text)', border: 'none', borderRadius: '4px 4px 0 0', cursor: 'pointer', fontWeight: 'bold' }}
-                            onClick={() => setSubTab('rechazados')}
-                        >
-                            Historial Rechazados
+                            Historial Incumplidos
                         </button>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', paddingBottom: '0.5rem' }}>
-                        <h3>{subTab === 'generales' ? 'Acuerdos Aprobados y Vigentes' : subTab === 'aprobacion' ? 'Borradores Pendientes de Aprobación' : 'Acuerdos Rechazados'}</h3>
-                        <button className="btn" onClick={handleCrear}>
-                            ➕ Crear Nuevo Acuerdo
-                        </button>
+                        <h3>{subTab === 'generales' ? 'Acuerdos Aprobados y Vigentes' : subTab === 'aprobacion' ? 'Borradores Pendientes de Aprobación' : 'Acuerdos Incumplidos'}</h3>
+                        {(userRole === 'Abogado' || userRole === 'Administrador') && (
+                            <button className="btn" onClick={handleCrear}>
+                                ➕ Crear Nuevo Acuerdo
+                            </button>
+                        )}
                     </div>
 
                     {/* Alertas de Incumplimiento */}
@@ -385,18 +391,26 @@ const EjecucionView = ({ procesosExternos, userRole, userName }) => {
                 <div className="card">
                     {/* Barra de Herramientas (Toolbar) Superior */}
                     <div style={{ display: 'flex', gap: '0.5rem', backgroundColor: '#f3f4f6', padding: '0.8rem', borderRadius: '8px', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <button title="Crear Nuevo" onClick={handleCrear} className="btn btn-outline" style={{ background: 'white', borderColor: '#ccc', color: '#333' }}>
-                            ➕ Crear
-                        </button>
-                        <button title="Guardar" onClick={handleGuardar} className="btn btn-outline" style={{ background: 'white', borderColor: '#ccc', color: '#333' }} disabled={!isEditing && !nuevoEstadoAprobacion}>
-                            💾 Guardar
-                        </button>
-                        <button title="Eliminar" onClick={handleEliminar} className="btn btn-outline" style={{ background: 'white', borderColor: '#ccc', color: '#d32f2f' }} disabled={acuerdoActual.estado !== 'Borrador' && acuerdoActual.estado !== 'Rechazado'}>
-                            🗑️ Eliminar
-                        </button>
-                        <button title="Editar" onClick={handleEditar} className="btn btn-outline" style={{ background: 'white', borderColor: '#ccc', color: '#333' }} disabled={isEditing || (acuerdoActual.estado !== 'Borrador' && acuerdoActual.estado !== 'Rechazado')}>
-                            ✏️ Editar
-                        </button>
+                        {(userRole === 'Abogado' || userRole === 'Administrador') && (
+                            <button title="Crear Nuevo" onClick={handleCrear} className="btn btn-outline" style={{ background: 'white', borderColor: '#ccc', color: '#333' }}>
+                                ➕ Crear
+                            </button>
+                        )}
+                        {(userRole === 'Abogado' || userRole === 'Administrador') && (
+                            <button title="Guardar" onClick={handleGuardar} className="btn btn-outline" style={{ background: 'white', borderColor: '#ccc', color: '#333' }} disabled={!isEditing}>
+                                💾 Guardar
+                            </button>
+                        )}
+                        {(userRole === 'Abogado' || userRole === 'Administrador') && (
+                            <button title="Eliminar" onClick={handleEliminar} className="btn btn-outline" style={{ background: 'white', borderColor: '#ccc', color: '#d32f2f' }} disabled={acuerdoActual.estado !== 'Borrador' && acuerdoActual.estado !== 'Incumplido'}>
+                                🗑️ Eliminar
+                            </button>
+                        )}
+                        {(userRole === 'Abogado' || userRole === 'Administrador') && (
+                            <button title="Editar" onClick={handleEditar} className="btn btn-outline" style={{ background: 'white', borderColor: '#ccc', color: '#333' }} disabled={isEditing || (acuerdoActual.estado !== 'Borrador' && acuerdoActual.estado !== 'Incumplido')}>
+                                ✏️ Editar
+                            </button>
+                        )}
                         <button title="Retornar" onClick={handleRetornar} className="btn btn-outline" style={{ background: 'white', borderColor: '#ccc', color: '#333', marginLeft: 'auto' }}>
                             ⬅️ Retornar
                         </button>
@@ -406,7 +420,7 @@ const EjecucionView = ({ procesosExternos, userRole, userName }) => {
                         <h3>{acuerdoActual.estado === 'Borrador' && isEditing && !acuerdoActual.identificacion ? 'Crear Nuevo Acuerdo de Pago' : `Acuerdo: ${acuerdoActual.consecutivo} - Estado: ${acuerdoActual.estado}`}</h3>
                         
                         {/* Dropdown de Aprobación */}
-                        {subTab === 'aprobacion' && !isEditing && (
+                        {subTab === 'aprobacion' && !isEditing && (userRole === 'Secretario de Hacienda' || userRole === 'Administrador') && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#eef2ff', padding: '0.5rem 1rem', borderRadius: '4px', border: '1px solid #c7d2fe' }}>
                                 <label style={{ fontWeight: 'bold', color: '#3730a3' }}>Acción de Aprobación:</label>
                                 <select 
@@ -417,7 +431,7 @@ const EjecucionView = ({ procesosExternos, userRole, userName }) => {
                                 >
                                     <option value="">-- Seleccionar --</option>
                                     <option value="Aprobado">Aprobar Acuerdo</option>
-                                    <option value="Rechazado">Rechazar Acuerdo</option>
+                                    <option value="Incumplido">Rechazar Acuerdo</option>
                                 </select>
                                 <button className="btn" style={{ padding: '0.4rem 1rem', background: '#4f46e5' }} onClick={handleGuardar} disabled={!nuevoEstadoAprobacion}>
                                     Confirmar

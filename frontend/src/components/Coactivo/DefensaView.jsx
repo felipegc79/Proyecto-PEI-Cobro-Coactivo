@@ -1,17 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import IndicadorAsignacion from '../Shared/IndicadorAsignacion';
+import { useLocation, useNavigate } from 'react-router-dom';
 
-const DefensaView = ({ userName }) => {
+const DefensaView = ({ userName, setProcesosExternos }) => {
+    const location = useLocation();
+    const navigate = useNavigate();
+    const procesoRouteState = location.state?.procesoPreseleccionado || null;
+
+    const [procesoVinculado, setProcesoVinculado] = useState(procesoRouteState);
     const [estadoPruebas, setEstadoPruebas] = useState('');
+
+    useEffect(() => {
+        if (procesoRouteState) {
+            setProcesoVinculado(procesoRouteState);
+        }
+    }, [procesoRouteState]);
 
     const handleValidarPruebas = () => {
         alert("Pruebas Aceptadas: El proceso se suspende para su eventual cierre/archivamiento.");
         setEstadoPruebas('validas');
+        if (procesoVinculado && setProcesosExternos) {
+            const updated = { ...procesoVinculado, estadoProceso: 'CERRADO', estado: 'CERRADO' };
+            setProcesosExternos(updated);
+        }
     };
 
     const handleRechazarPruebas = () => {
         alert("Pruebas Rechazadas: El proceso se bloquea temporalmente en esta fase y retoma hacia la Ejecución de Medidas.");
         setEstadoPruebas('rechazadas');
+        if (procesoVinculado && setProcesosExternos) {
+            const updated = { ...procesoVinculado, estadoProceso: 'EN EJECUCION', estado: 'EN EJECUCION' };
+            setProcesosExternos(updated);
+        }
     };
 
     const [archivosCargados, setArchivosCargados] = useState([]);
@@ -41,6 +61,12 @@ const DefensaView = ({ userName }) => {
             <p className="page-subtitle">Recepción de excepciones formales y evaluación de pruebas aportadas.</p>
 
             <IndicadorAsignacion area="Dirección Jurídica" funcionario={userName || "Dr. Roberto Gómez"} />
+
+            {procesoVinculado && (
+                <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#e0f2fe', border: '1px solid #bae6fd', borderRadius: '8px' }}>
+                    <p style={{ margin: 0, color: '#0369a1' }}><strong>Proceso en Evaluación:</strong> {procesoVinculado.consecutivo} - {procesoVinculado.nombre} (ID: {procesoVinculado.identificacion})</p>
+                </div>
+            )}
 
             <div className="card">
                 <h3 style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', marginBottom: '1.5rem' }}>

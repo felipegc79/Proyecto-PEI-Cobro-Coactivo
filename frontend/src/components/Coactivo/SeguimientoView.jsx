@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { FileText, Phone, Mail, User, Search, Eye, Trash2, Plus, X, CheckSquare, Send } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import { useNavigate } from 'react-router-dom';
 
 const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Administrador', userName = '' }) => {
+    const navigate = useNavigate();
     const [filtroRazonSocial, setFiltroRazonSocial] = useState('');
     const [filtroCedula, setFiltroCedula] = useState('');
     const [filtroConsecutivo, setFiltroConsecutivo] = useState('');
@@ -15,6 +17,7 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
     const [showMassNotifyModal, setShowMassNotifyModal] = useState(false);
     const [massNotifyTemplate, setMassNotifyTemplate] = useState('Estimado {Nombre}, NIT {NIT}, le notificamos del proceso {Radicado}.');
     const [massNotifyType, setMassNotifyType] = useState('email');
+    const [massNotifyResults, setMassNotifyResults] = useState(null); // { sent, failed: [{id,nombre,error}] }
 
     const [abogadosDisponibles, setAbogadosDisponibles] = useState(["Carlos Rodríguez", "Ana Martínez", "Luis Fernández", "María Gómez"]);
     const [showAddLawyerModal, setShowAddLawyerModal] = useState(false);
@@ -203,11 +206,22 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
     const handleExecuteMassNotify = () => {
         if (selectedForMassAction.length === 0) return;
         
-        // Simular éxito y fracaso (80% éxito)
-        const successCount = Math.floor(selectedForMassAction.length * 0.8);
-        const failCount = selectedForMassAction.length - successCount;
-        
-        alert(`Notificación Masiva Completada.\n\nEnviados exitosamente: ${successCount}\nFallidos por rebote/error: ${failCount}`);
+        const ERRORES_POSIBLES = [
+            'Buzón lleno - rebote permanente (550)',
+            'Dirección de correo no existe (551)',
+            'Número de teléfono inválido',
+            'WhatsApp no registrado en este número',
+            'Tiempo de espera agotado (timeout)',
+            'Cuenta suspendida por el proveedor',
+        ];
+
+        const selected = procesosFiltrados.filter(p => selectedForMassAction.includes(p.id));
+        const failed = selected
+            .filter(() => Math.random() < 0.2)
+            .map(p => ({ id: p.consecutivo, nombre: p.nombre, error: ERRORES_POSIBLES[Math.floor(Math.random() * ERRORES_POSIBLES.length)] }));
+        const sent = selected.length - failed.length;
+
+        setMassNotifyResults({ sent, failed });
         setShowMassNotifyModal(false);
         setSelectedForMassAction([]);
     };
@@ -315,33 +329,44 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
             hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             observacion: '',
             adjuntos: [],
-            // Specific fields for tabs
+            canal: activeTab, // telefonica, personal, email, whatsapp, sms
             transportadora: '',
             direccion: '',
             guia: '',
-            emailDestino: ''
+            emailDestino: '',
+            telefonoDestino: '',
         };
 
         const updated = { ...selectedProceso };
-        if (activeTab === 'telefonica') updated.notificaciones.telefonica.push(newRecord);
-        else if (activeTab === 'personal') updated.notificaciones.personal.push(newRecord);
-        else if (activeTab === 'email') updated.notificaciones.electronico.push(newRecord);
-        
+        const notifs = updated.notificaciones;
+        if (activeTab === 'telefonica') notifs.telefonica.push(newRecord);
+        else if (activeTab === 'personal') notifs.personal.push(newRecord);
+        else if (activeTab === 'email') notifs.electronico.push(newRecord);
+        else if (activeTab === 'whatsapp') { notifs.whatsapp = notifs.whatsapp || []; notifs.whatsapp.push(newRecord); }
+        else if (activeTab === 'sms') { notifs.sms = notifs.sms || []; notifs.sms.push(newRecord); }
         setSelectedProceso(updated);
     };
 
     const handleDeleteRecord = (id) => {
         const updated = { ...selectedProceso };
-        if (activeTab === 'telefonica') updated.notificaciones.telefonica = updated.notificaciones.telefonica.filter(r => r.id !== id);
-        else if (activeTab === 'personal') updated.notificaciones.personal = updated.notificaciones.personal.filter(r => r.id !== id);
-        else if (activeTab === 'email') updated.notificaciones.electronico = updated.notificaciones.electronico.filter(r => r.id !== id);
+        const notifs = updated.notificaciones;
+        if (activeTab === 'telefonica') notifs.telefonica = notifs.telefonica.filter(r => r.id !== id);
+        else if (activeTab === 'personal') notifs.personal = notifs.personal.filter(r => r.id !== id);
+        else if (activeTab === 'email') notifs.electronico = notifs.electronico.filter(r => r.id !== id);
+        else if (activeTab === 'whatsapp') notifs.whatsapp = (notifs.whatsapp || []).filter(r => r.id !== id);
+        else if (activeTab === 'sms') notifs.sms = (notifs.sms || []).filter(r => r.id !== id);
         setSelectedProceso(updated);
     };
 
     const handleFileChange = (recordId, files) => {
         const updated = { ...selectedProceso };
-        const recordType = activeTab === 'telefonica' ? 'telefonica' : (activeTab === 'personal' ? 'personal' : 'electronico');
-        const records = updated.notificaciones[recordType];
+        const notifs = updated.notificaciones;
+        let records;
+        if (activeTab === 'telefonica') records = notifs.telefonica;
+        else if (activeTab === 'personal') records = notifs.personal;
+        else if (activeTab === 'email') records = notifs.electronico;
+        else if (activeTab === 'whatsapp') { notifs.whatsapp = notifs.whatsapp || []; records = notifs.whatsapp; }
+        else { notifs.sms = notifs.sms || []; records = notifs.sms; }
         const recordIndex = records.findIndex(r => r.id === recordId);
         
         if (recordIndex !== -1) {
@@ -357,10 +382,14 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
 
     const removeAdjunto = (recordId, adjuntoIndex) => {
         const updated = { ...selectedProceso };
-        const recordType = activeTab === 'telefonica' ? 'telefonica' : (activeTab === 'personal' ? 'personal' : 'electronico');
-        const records = updated.notificaciones[recordType];
+        const notifs = updated.notificaciones;
+        let records;
+        if (activeTab === 'telefonica') records = notifs.telefonica;
+        else if (activeTab === 'personal') records = notifs.personal;
+        else if (activeTab === 'email') records = notifs.electronico;
+        else if (activeTab === 'whatsapp') records = notifs.whatsapp || [];
+        else records = notifs.sms || [];
         const recordIndex = records.findIndex(r => r.id === recordId);
-        
         if (recordIndex !== -1) {
             records[recordIndex].adjuntos.splice(adjuntoIndex, 1);
             setSelectedProceso(updated);
@@ -377,10 +406,15 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
 
     const renderTabContent = () => {
         if (!selectedProceso) return null;
+        const notifs = selectedProceso.notificaciones;
 
         const records = activeTab === 'telefonica' 
-            ? selectedProceso.notificaciones.telefonica 
-            : (activeTab === 'personal' ? selectedProceso.notificaciones.personal : selectedProceso.notificaciones.electronico);
+            ? notifs.telefonica 
+            : activeTab === 'personal' ? notifs.personal 
+            : activeTab === 'email' ? notifs.electronico
+            : activeTab === 'whatsapp' ? (notifs.whatsapp || [])
+            : activeTab === 'sms' ? (notifs.sms || [])
+            : [];
 
         if (activeTab === 'formatoPersonal') {
             return (
@@ -459,7 +493,11 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
             <div className="tab-pane">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                     <h4 style={{ margin: 0 }}>
-                        {activeTab === 'telefonica' ? 'Llamadas Telefónicas' : (activeTab === 'personal' ? 'Correo Certificado / Personal' : 'Correo Electrónico')}
+                        {activeTab === 'telefonica' ? '📞 Llamadas Telefónicas' 
+                        : activeTab === 'personal' ? '📬 Correo Certificado / Personal'
+                        : activeTab === 'email' ? '📧 Correo Electrónico'
+                        : activeTab === 'whatsapp' ? '💬 WhatsApp'
+                        : '📱 Mensaje de Texto (SMS)'}
                     </h4>
                     <button className="btn btn-sm" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }} onClick={handleAddRecord}>
                         <Plus size={14} /> Añadir Registro
@@ -543,17 +581,37 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
                                     </div>
                                 )}
 
+                            {(activeTab === 'whatsapp' || activeTab === 'sms') && (
+                                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                                    <label style={{ fontSize: '0.8rem' }}>Número de Teléfono / WhatsApp</label>
+                                    <input 
+                                        type="tel" 
+                                        className="p-1" 
+                                        value={n.telefonoDestino || ''}
+                                        onChange={(e) => {
+                                            const updated = { ...selectedProceso };
+                                            const notifs2 = updated.notificaciones;
+                                            const arr = activeTab === 'whatsapp' ? (notifs2.whatsapp || []) : (notifs2.sms || []);
+                                            const idx2 = arr.findIndex(r => r.id === n.id);
+                                            if (idx2 !== -1) arr[idx2].telefonoDestino = e.target.value;
+                                            setSelectedProceso(updated);
+                                        }}
+                                        style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px' }} 
+                                        placeholder="+57 300 000 0000"
+                                    />
+                                </div>
+                            )}
                             {activeTab === 'email' && (
                                 <div className="form-group" style={{ marginBottom: '1rem' }}>
                                     <label style={{ fontSize: '0.8rem' }}>Correo de Destino</label>
                                     <input 
                                         type="email" 
                                         className="p-1" 
-                                        value={n.emailDestino}
+                                        value={n.emailDestino || ''}
                                         onChange={(e) => {
                                             const updated = { ...selectedProceso };
                                             const index = updated.notificaciones.electronico.findIndex(r => r.id === n.id);
-                                            updated.notificaciones.electronico[index].emailDestino = e.target.value;
+                                            if (index !== -1) updated.notificaciones.electronico[index].emailDestino = e.target.value;
                                             setSelectedProceso(updated);
                                         }}
                                         style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px' }} 
@@ -569,22 +627,28 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
                                 value={n.observacion}
                                 onChange={(e) => {
                                     const updated = { ...selectedProceso };
-                                    const type = activeTab === 'telefonica' ? 'telefonica' : (activeTab === 'personal' ? 'personal' : 'electronico');
-                                    const index = updated.notificaciones[type].findIndex(r => r.id === n.id);
-                                    updated.notificaciones[type][index].observacion = e.target.value;
+                                    const notifs3 = updated.notificaciones;
+                                    let arr3;
+                                    if (activeTab === 'telefonica') arr3 = notifs3.telefonica;
+                                    else if (activeTab === 'personal') arr3 = notifs3.personal;
+                                    else if (activeTab === 'email') arr3 = notifs3.electronico;
+                                    else if (activeTab === 'whatsapp') arr3 = notifs3.whatsapp || [];
+                                    else arr3 = notifs3.sms || [];
+                                    const idx3 = arr3.findIndex(r => r.id === n.id);
+                                    if (idx3 !== -1) arr3[idx3].observacion = e.target.value;
                                     setSelectedProceso(updated);
                                 }}
                             />
 
                             <div>
                                 <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '0.5rem' }}>
-                                    Adjuntar Archivos ({activeTab === 'telefonica' ? 'Audio MP3' : 'PNG, JPEG, PDF'})
+                                    Adjuntar Archivos ({activeTab === 'telefonica' ? 'Audio MP3, WAV' : activeTab === 'whatsapp' || activeTab === 'sms' ? 'Captura de pantalla (PNG, JPEG)' : 'PNG, JPEG, PDF'})
                                 </label>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                     <input 
                                         type="file" 
                                         multiple
-                                        accept={activeTab === 'telefonica' ? ".mp3" : ".png, .jpg, .jpeg, .pdf"}
+                                        accept={activeTab === 'telefonica' ? '.mp3,.wav,.ogg' : activeTab === 'whatsapp' || activeTab === 'sms' ? '.png,.jpg,.jpeg' : '.png,.jpg,.jpeg,.pdf'}
                                         onChange={(e) => handleFileChange(n.id, e.target.files)}
                                         style={{ fontSize: '0.85rem' }}
                                     />
@@ -735,7 +799,31 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
                                     </span>
                                 </td>
                                 <td style={{ padding: '1rem' }}>
-                                    <span style={{ color: '#059669', fontWeight: 'bold' }}>{p.estado}</span>
+                                    {(() => {
+                                        let estadoLabel = p.estadoProceso || p.estado;
+                                        let estadoColor = '#059669';
+                                        
+                                        if (estadoLabel === 'EN DEFENSA DEL CONTRIBUYENTE') {
+                                            if (p.fechaDefensa) {
+                                                const diffTime = Math.abs(new Date() - new Date(p.fechaDefensa));
+                                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                                if (diffDays > 5) {
+                                                    estadoLabel = 'Vencido - Defensa';
+                                                    estadoColor = '#ef4444';
+                                                } else {
+                                                    estadoLabel = 'Pausado (En Defensa)';
+                                                    estadoColor = '#f59e0b';
+                                                }
+                                            } else {
+                                                estadoLabel = 'Pausado (En Defensa)';
+                                                estadoColor = '#f59e0b';
+                                            }
+                                        }
+
+                                        return (
+                                            <span style={{ color: estadoColor, fontWeight: 'bold' }}>{estadoLabel}</span>
+                                        );
+                                    })()}
                                 </td>
                                 <td style={{ padding: '1rem' }}>
                                     <select 
@@ -757,7 +845,7 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
                                     </select>
                                 </td>
                                 <td style={{ padding: '1rem' }}>
-                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                                         <button 
                                             className="btn btn-outline" 
                                             onClick={() => handleVerMandamiento(p)}
@@ -771,6 +859,24 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
                                             style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
                                         >
                                             <Mail size={14} /> Notificaciones
+                                        </button>
+                                        <button 
+                                            className="btn" 
+                                            onClick={() => navigate('/embargo', { state: { procesoPreseleccionado: p } })}
+                                            style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#10b981', color: 'white', border: 'none' }}
+                                        >
+                                            <CheckSquare size={14} /> Embargos y Medidas
+                                        </button>
+                                        <button 
+                                            className="btn" 
+                                            onClick={() => {
+                                                const updated = { ...p, estadoProceso: 'EN DEFENSA DEL CONTRIBUYENTE', estado: 'EN DEFENSA DEL CONTRIBUYENTE', fechaDefensa: new Date().toISOString() };
+                                                setProcesosExternos(updated);
+                                                navigate('/defensa', { state: { procesoPreseleccionado: updated } });
+                                            }}
+                                            style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#8b5cf6', color: 'white', border: 'none' }}
+                                        >
+                                            <Search size={14} /> Defensa del Contribuyente
                                         </button>
                                     </div>
                                 </td>
@@ -825,47 +931,31 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
                             </div>
                         </div>
 
-                        <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', marginBottom: '1rem' }}>
-                            <button 
-                                onClick={() => setActiveTab('telefonica')}
-                                style={{ 
-                                    padding: '0.75rem 1.5rem', border: 'none', borderBottom: activeTab === 'telefonica' ? '3px solid var(--color-primary)' : 'none',
-                                    background: 'none', cursor: 'pointer', fontWeight: activeTab === 'telefonica' ? 'bold' : 'normal',
-                                    color: activeTab === 'telefonica' ? 'var(--color-primary)' : '#666', display: 'flex', alignItems: 'center', gap: '0.5rem'
-                                }}
-                            >
-                                <Phone size={18} /> Telefónica
-                            </button>
-                            <button 
-                                onClick={() => setActiveTab('personal')}
-                                style={{ 
-                                    padding: '0.75rem 1.5rem', border: 'none', borderBottom: activeTab === 'personal' ? '3px solid var(--color-primary)' : 'none',
-                                    background: 'none', cursor: 'pointer', fontWeight: activeTab === 'personal' ? 'bold' : 'normal',
-                                    color: activeTab === 'personal' ? 'var(--color-primary)' : '#666', display: 'flex', alignItems: 'center', gap: '0.5rem'
-                                }}
-                            >
-                                <User size={18} /> Personal / Correo Certificado
-                            </button>
-                            <button 
-                                onClick={() => setActiveTab('email')}
-                                style={{ 
-                                    padding: '0.75rem 1.5rem', border: 'none', borderBottom: activeTab === 'email' ? '3px solid var(--color-primary)' : 'none',
-                                    background: 'none', cursor: 'pointer', fontWeight: activeTab === 'email' ? 'bold' : 'normal',
-                                    color: activeTab === 'email' ? 'var(--color-primary)' : '#666', display: 'flex', alignItems: 'center', gap: '0.5rem'
-                                }}
-                            >
-                                <Mail size={18} /> Correo Electrónico
-                            </button>
-                            <button 
-                                onClick={() => setActiveTab('formatoPersonal')}
-                                style={{ 
-                                    padding: '0.75rem 1.5rem', border: 'none', borderBottom: activeTab === 'formatoPersonal' ? '3px solid var(--color-primary)' : 'none',
-                                    background: 'none', cursor: 'pointer', fontWeight: activeTab === 'formatoPersonal' ? 'bold' : 'normal',
-                                    color: activeTab === 'formatoPersonal' ? 'var(--color-primary)' : '#666', display: 'flex', alignItems: 'center', gap: '0.5rem'
-                                }}
-                            >
-                                <FileText size={18} /> Formato Notificación Personal
-                            </button>
+                        <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                            {[
+                                { key: 'telefonica', icon: '📞', label: 'Telefónica' },
+                                { key: 'personal', icon: '📬', label: 'Correo Certificado' },
+                                { key: 'email', icon: '📧', label: 'Email' },
+                                { key: 'whatsapp', icon: '💬', label: 'WhatsApp' },
+                                { key: 'sms', icon: '📱', label: 'SMS' },
+                                { key: 'formatoPersonal', icon: '📄', label: 'Formato Notif.' },
+                            ].map(tab => (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => setActiveTab(tab.key)}
+                                    style={{
+                                        padding: '0.75rem 1.2rem', border: 'none',
+                                        borderBottom: activeTab === tab.key ? '3px solid var(--color-primary)' : 'none',
+                                        background: 'none', cursor: 'pointer',
+                                        fontWeight: activeTab === tab.key ? 'bold' : 'normal',
+                                        color: activeTab === tab.key ? 'var(--color-primary)' : '#666',
+                                        display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                        fontSize: '0.9rem'
+                                    }}
+                                >
+                                    {tab.icon} {tab.label}
+                                </button>
+                            ))}
                         </div>
 
                         <div style={{ padding: '1rem 0' }}>
@@ -874,7 +964,11 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
 
                         <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
                             <button className="btn btn-outline" onClick={() => setSelectedProceso(null)}>Cerrar</button>
-                            <button className="btn" onClick={handleSaveNotificaciones}>Guardar Cambios</button>
+                            {activeTab === 'personal' ? (
+                                <button className="btn" onClick={handleSaveNotificaciones} style={{ backgroundColor: '#f59e0b', color: 'white', border: 'none' }}>Guardar y enviar a Courier</button>
+                            ) : (
+                                <button className="btn" onClick={handleSaveNotificaciones}>Guardar Cambios</button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -911,6 +1005,56 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
                             <button className="btn" onClick={handleExecuteMassNotify} style={{ backgroundColor: '#2563eb' }}>
                                 Enviar Notificaciones
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Resultados Notificación Masiva */}
+            {massNotifyResults && (
+                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001 }}>
+                    <div className="card" style={{ width: '650px', maxWidth: '95vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <h2 style={{ margin: 0, color: 'var(--color-primary)' }}>📊 Resultado de Notificación Masiva</h2>
+                            <button onClick={() => setMassNotifyResults(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.5rem' }}>&times;</button>
+                        </div>
+                        <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                            <div style={{ flex: 1, background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '8px', padding: '1rem', textAlign: 'center' }}>
+                                <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#059669' }}>{massNotifyResults.sent}</div>
+                                <div style={{ color: '#065f46', fontWeight: '600' }}>✅ Enviados exitosamente</div>
+                            </div>
+                            <div style={{ flex: 1, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '1rem', textAlign: 'center' }}>
+                                <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#dc2626' }}>{massNotifyResults.failed.length}</div>
+                                <div style={{ color: '#991b1b', fontWeight: '600' }}>❌ Fallidos / Rebotados</div>
+                            </div>
+                        </div>
+                        {massNotifyResults.failed.length > 0 && (
+                            <>
+                                <h3 style={{ margin: '0 0 0.75rem 0', color: '#dc2626', fontSize: '1rem' }}>Detalle de Registros Fallidos</h3>
+                                <div style={{ overflowY: 'auto', flex: 1, border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                                        <thead>
+                                            <tr style={{ background: '#fef2f2', borderBottom: '2px solid #fecaca' }}>
+                                                <th style={{ padding: '0.75rem', textAlign: 'left' }}>Consecutivo</th>
+                                                <th style={{ padding: '0.75rem', textAlign: 'left' }}>Nombre</th>
+                                                <th style={{ padding: '0.75rem', textAlign: 'left' }}>Error Técnico</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {massNotifyResults.failed.map((f, i) => (
+                                                <tr key={i} style={{ borderBottom: '1px solid #fee2e2' }}>
+                                                    <td style={{ padding: '0.75rem', color: '#4338ca', fontWeight: 'bold' }}>{f.id}</td>
+                                                    <td style={{ padding: '0.75rem' }}>{f.nombre}</td>
+                                                    <td style={{ padding: '0.75rem', color: '#dc2626', fontSize: '0.8rem' }}>{f.error}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>
+                        )}
+                        <div style={{ marginTop: '1rem', textAlign: 'right' }}>
+                            <button className="btn" onClick={() => setMassNotifyResults(null)}>Cerrar</button>
                         </div>
                     </div>
                 </div>

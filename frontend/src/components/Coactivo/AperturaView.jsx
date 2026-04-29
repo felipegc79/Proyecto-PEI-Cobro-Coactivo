@@ -14,6 +14,16 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
     const [consecutivoProceso, setConsecutivoProceso] = useState(null);
     const [pdfUrl, setPdfUrl] = useState(null);
     const [showFichaTecnica, setShowFichaTecnica] = useState(false);
+    const [showNuevoProcesoModal, setShowNuevoProcesoModal] = useState(false);
+    const [nuevoProcesoForm, setNuevoProcesoForm] = useState({
+        nombre: '',
+        identificacion: '',
+        numObligacion: '',
+        valor: '',
+        fechaInicio: new Date().toISOString().split('T')[0],
+        areaResponsable: 'Jurídica',
+        funcionarioAsignado: userName || '',
+    });
     const pdfRef = useRef(null);
 
     // We remove the static mockFacturas from here and derive it dynamically later
@@ -38,13 +48,9 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
             pdfRef.current.style.left = '0px';
             pdfRef.current.style.zIndex = '9999';
 
-            // Pequeña espera para asegurar que el elemento sea renderizado y los estilos aplicados
             setTimeout(() => {
                 html2canvas(pdfRef.current, { 
-                    scale: 2,
-                    useCORS: true,
-                    allowTaint: true,
-                    logging: false
+                    scale: 2, useCORS: true, allowTaint: true, logging: false
                 }).then((canvas) => {
                     const imgData = canvas.toDataURL('image/jpeg', 1.0);
                     const pdf = new jsPDF('p', 'mm', 'a4');
@@ -55,10 +61,8 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
 
                     let heightLeft = imgHeight;
                     let position = 0;
-
                     pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
                     heightLeft -= pdfHeight;
-
                     while (heightLeft > 0) {
                         position = position - pdfHeight;
                         pdf.addPage();
@@ -66,12 +70,10 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
                         heightLeft -= pdfHeight;
                     }
 
-                    // 1. Generar el Blob del PDF
                     const blob = pdf.output('blob');
                     const url = URL.createObjectURL(blob);
                     setPdfUrl(url);
 
-                    // 2. Ejecutar descarga (Método compatible con Chrome/Edge/Firefox)
                     const link = document.createElement('a');
                     link.href = url;
                     link.download = `Borrador_Mandamiento_${deudorActual.identificacion}.pdf`;
@@ -79,11 +81,20 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
                     link.click();
                     document.body.removeChild(link);
 
-                    // Limpiar y actualizar estado
                     pdfRef.current.style.top = '-10000px';
                     pdfRef.current.style.left = '-10000px';
                     pdfRef.current.style.zIndex = '-1';
                     setMandamientoGenerado(true);
+
+                    // Transición automática: APERTURADO -> EN NOTIFICACION
+                    if (setProcesosExternos && deudorActual.estadoProceso === 'APERTURADO') {
+                        setProcesosExternos(prev => prev.map(p =>
+                            p.id === deudorActual.id
+                                ? { ...p, estadoProceso: 'EN NOTIFICACION', estado: 'EN NOTIFICACION' }
+                                : p
+                        ));
+                        setDeudorActual(prev => ({ ...prev, estadoProceso: 'EN NOTIFICACION', estado: 'EN NOTIFICACION' }));
+                    }
                 }).catch(err => {
                     console.error("Error generating PDF:", err);
                     alert("Hubo un error al generar el PDF. Por favor intente de nuevo.");
@@ -130,10 +141,9 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
     const [filtroNombre, setFiltroNombre] = useState('');
     const [filtroIdentificacion, setFiltroIdentificacion] = useState('');
     const [filtroObligacion, setFiltroObligacion] = useState('');
-    const [filtroEstado, setFiltroEstado] = useState('');
     const [filtroFecha, setFiltroFecha] = useState('');
 
-    const mockProcesos = procesosExternos || [];
+    const mockProcesos = (procesosExternos || []).filter(p => p.estadoProceso === 'APERTURADO');
 
     // Filtros adicionales
     const [filtroCuantia, setFiltroCuantia] = useState('');
@@ -144,7 +154,6 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
         return p.nombre.toLowerCase().includes(filtroNombre.toLowerCase()) &&
             p.identificacion.includes(filtroIdentificacion) &&
             p.numObligacion.toLowerCase().includes(filtroObligacion.toLowerCase()) &&
-            (filtroEstado === '' || p.estadoProceso === filtroEstado) &&
             (filtroCuantia === '' || p.cuantia === filtroCuantia) &&
             (filtroPrescripcion === '' || p.prescripcion === filtroPrescripcion) &&
             p.fechaInicio.includes(filtroFecha);
@@ -162,6 +171,44 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
         setMandamientoGenerado(false);
         setConsecutivoProceso(null);
         setPdfUrl(null);
+    };
+
+    // Crear nuevo proceso manualmente
+    const handleCrearNuevoProceso = (e) => {
+        e.preventDefault();
+        const { nombre, identificacion, numObligacion, valor, fechaInicio, areaResponsable, funcionarioAsignado } = nuevoProcesoForm;
+        if (!nombre || !identificacion || !numObligacion || !valor) {
+            alert('Complete los campos obligatorios.');
+            return;
+        }
+        const valorNum = parseFloat(String(valor).replace(/\./g, '').replace(',', '.')) || 0;
+        const cuantia = valorNum < 50000 ? 'Pequeña' : valorNum <= 2000000 ? 'Mediana' : 'Grande';
+        const today2 = new Date();
+        const diffTime = Math.abs(today2 - new Date(fechaInicio));
+        const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365.25);
+        const prescripcion = diffYears > 5 ? 'Prescrita' : diffYears > 4.5 ? 'Por Prescribir' : 'Vigente';
+        const nuevoConsecutivo = `CC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const nuevoProceso = {
+            id: Date.now().toString(),
+            identificacion,
+            nombre,
+            numObligacion,
+            consecutivo: nuevoConsecutivo,
+            estadoProceso: 'APERTURADO',
+            estado: 'APERTURADO',
+            fechaInicio,
+            valor: valorNum,
+            cuantia,
+            prescripcion,
+            areaResponsable: areaResponsable || 'Jurídica',
+            funcionarioAsignado: funcionarioAsignado || userName || 'Sin Asignar',
+            pdfUrl: null,
+            notificaciones: { telefonica: [], personal: [], electronico: [] }
+        };
+        if (onAddProcess) onAddProcess(nuevoProceso);
+        setShowNuevoProcesoModal(false);
+        setNuevoProcesoForm({ nombre: '', identificacion: '', numObligacion: '', valor: '', fechaInicio: new Date().toISOString().split('T')[0], areaResponsable: 'Jurídica', funcionarioAsignado: userName || '' });
+        alert(`Proceso creado exitosamente.\nConsecutivo: ${nuevoConsecutivo}\nEstado: APERTURADO`);
     };
 
     const facturasDelDeudor = deudorActual ? [
@@ -211,9 +258,14 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                 <h1 className="page-title">Apertura del Proceso Coactivo</h1>
-                <button className="btn" onClick={exportToCSV} style={{ backgroundColor: '#10b981', border: 'none' }}>
-                    ⬇ Exportar Resultados a Excel (CSV)
-                </button>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                    <button className="btn" onClick={() => setShowNuevoProcesoModal(true)} style={{ backgroundColor: '#4f46e5', border: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        ➕ Crear Nuevo Proceso
+                    </button>
+                    <button className="btn" onClick={exportToCSV} style={{ backgroundColor: '#10b981', border: 'none' }}>
+                        ⬇ Exportar CSV
+                    </button>
+                </div>
             </div>
 
             <p className="page-subtitle">
@@ -228,26 +280,9 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
                         Listado de Procesos Susceptibles de Cobro
                     </h3>
 
-                    {/* Resumen de Estados */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-                        {[
-                            { estado: 'APERTURADO', color: '#3b82f6', bg: '#eff6ff', count: mockProcesos.filter(p => p.estadoProceso === 'APERTURADO').length },
-                            { estado: 'EN NOTIFICACION', color: '#f59e0b', bg: '#fffbeb', count: mockProcesos.filter(p => p.estadoProceso === 'EN NOTIFICACION').length },
-                            { estado: 'EN EJECUCION', color: '#8b5cf6', bg: '#f5f3ff', count: mockProcesos.filter(p => p.estadoProceso === 'EN EJECUCION').length },
-                            { estado: 'EN MORA', color: '#ef4444', bg: '#fef2f2', count: mockProcesos.filter(p => p.estadoProceso === 'EN MORA').length },
-                            { estado: 'EN LEVANTAMIENTO', color: '#06b6d4', bg: '#ecfeff', count: mockProcesos.filter(p => p.estadoProceso === 'EN LEVANTAMIENTO DE EMBARGO').length },
-                            { estado: 'CERRADO', color: '#10b981', bg: '#ecfdf5', count: mockProcesos.filter(p => p.estadoProceso === 'CERRADO').length },
-                            { estado: 'TOTAL', color: '#1f2937', bg: '#f3f4f6', count: mockProcesos.length },
-                        ].map((s, idx) => (
-                            <div key={idx} style={{ backgroundColor: s.bg, padding: '1rem', borderRadius: '8px', border: `1px solid ${s.color}33`, textAlign: 'center' }}>
-                                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: s.color }}>{s.count}</div>
-                                <div style={{ fontSize: '0.65rem', fontWeight: 'bold', color: '#4b5563', textTransform: 'uppercase', marginTop: '0.25rem' }}>{s.estado}</div>
-                            </div>
-                        ))}
-                    </div>
 
                     {/* Filtros UI */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1rem', marginBottom: '1.5rem', alignItems: 'flex-end' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem', marginBottom: '1.5rem', alignItems: 'flex-end' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'flex-end' }}>
                             <label style={{ fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Nombre</label>
                             <input type="text" className="p-2" style={{ border: '1px solid #ccc', borderRadius: '4px' }} placeholder="Buscar..." value={filtroNombre} onChange={e => { setFiltroNombre(e.target.value); setPaginaActual(1); }} />
@@ -276,18 +311,6 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
                                 <option value="Vigente">Vigente</option>
                                 <option value="Por Prescribir">Por Prescribir (Riesgo)</option>
                                 <option value="Prescrita">Prescrita</option>
-                            </select>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'flex-end' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Estado del Proceso</label>
-                            <select className="p-2" style={{ border: '1px solid #ccc', borderRadius: '4px' }} value={filtroEstado} onChange={e => { setFiltroEstado(e.target.value); setPaginaActual(1); }}>
-                                <option value="">Todos</option>
-                                <option value="APERTURADO">APERTURADO</option>
-                                <option value="EN NOTIFICACION">EN NOTIFICACION</option>
-                                <option value="EN EJECUCION">EN EJECUCION</option>
-                                <option value="EN MORA">EN MORA</option>
-                                <option value="EN LEVANTAMIENTO DE EMBARGO">EN LEVANTAMIENTO DE EMBARGO</option>
-                                <option value="CERRADO">CERRADO</option>
                             </select>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'flex-end' }}>
@@ -347,8 +370,13 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
                                             <button
                                                 className="btn btn-outline"
                                                 onClick={() => onVerObligaciones(proceso)}
-                                                style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem' }}
-                                                title="Generar Mandamiento"
+                                                disabled={proceso.estadoProceso !== 'APERTURADO'}
+                                                style={{
+                                                    fontSize: '0.85rem', padding: '0.4rem 0.8rem',
+                                                    opacity: proceso.estadoProceso !== 'APERTURADO' ? 0.45 : 1,
+                                                    cursor: proceso.estadoProceso !== 'APERTURADO' ? 'not-allowed' : 'pointer'
+                                                }}
+                                                title={proceso.estadoProceso !== 'APERTURADO' ? 'Solo disponible para procesos APERTURADOS' : 'Generar Mandamiento'}
                                             >
                                                 Ver
                                             </button>
@@ -491,6 +519,61 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
                     facturas={facturasDelDeudor} 
                     onClose={() => { setShowFichaTecnica(false); setDeudorActual(null); }} 
                 />
+            )}
+
+            {/* Modal Crear Nuevo Proceso */}
+            {showNuevoProcesoModal && (
+                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+                    <div className="card" style={{ width: '560px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                            <h2 style={{ margin: 0, color: 'var(--color-primary)' }}>Crear Nuevo Proceso</h2>
+                            <button onClick={() => setShowNuevoProcesoModal(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.5rem' }}>&times;</button>
+                        </div>
+                        <p style={{ color: '#6b7280', marginBottom: '1.5rem', fontSize: '0.9rem' }}>El proceso quedará automáticamente en estado <strong>APERTURADO</strong>.</p>
+                        <form onSubmit={handleCrearNuevoProceso} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div>
+                                <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Nombre / Razón Social *</label>
+                                <input type="text" className="p-2" value={nuevoProcesoForm.nombre} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, nombre: e.target.value})} required style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem' }} />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Identificación / NIT *</label>
+                                    <input type="text" className="p-2" value={nuevoProcesoForm.identificacion} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, identificacion: e.target.value})} required style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem' }} />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Número de Obligación *</label>
+                                    <input type="text" className="p-2" value={nuevoProcesoForm.numObligacion} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, numObligacion: e.target.value})} required style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem' }} />
+                                </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Valor de la Obligación *</label>
+                                    <input type="number" className="p-2" value={nuevoProcesoForm.valor} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, valor: e.target.value})} required style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem' }} placeholder="$ 0" />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Fecha de Inicio</label>
+                                    <input type="date" className="p-2" value={nuevoProcesoForm.fechaInicio} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, fechaInicio: e.target.value})} style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem' }} />
+                                </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Área Responsable</label>
+                                    <select className="p-2" value={nuevoProcesoForm.areaResponsable} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, areaResponsable: e.target.value})} style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem' }}>
+                                        <option value="Jurídica">Jurídica</option>
+                                        <option value="Hacienda">Hacienda</option>
+                                        <option value="Fiscal">Fiscal</option>
+                                        <option value="Cartera">Cartera</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Nombre del Funcionario</label>
+                                    <input type="text" className="p-2" value={nuevoProcesoForm.funcionarioAsignado} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, funcionarioAsignado: e.target.value})} style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem' }} placeholder={userName || 'Funcionario asignado'} />
+                                </div>
+                            </div>
+                            <button type="submit" className="btn" style={{ marginTop: '1rem', width: '100%', backgroundColor: '#4f46e5', border: 'none' }}>Crear Proceso (APERTURADO)</button>
+                        </form>
+                    </div>
+                </div>
             )}
         </div>
     );

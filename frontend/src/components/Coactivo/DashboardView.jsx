@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const DashboardView = ({ procesosExternos = [] }) => {
     const [filtroMes, setFiltroMes] = useState('Todos');
@@ -27,25 +27,59 @@ const DashboardView = ({ procesosExternos = [] }) => {
     const procesosActivos = procesosFiltrados.filter(p => ['APERTURADO', 'EN NOTIFICACION', 'EN EJECUCION', 'EN MORA'].includes(p.estadoProceso));
     const procesosLevantamiento = procesosFiltrados.filter(p => p.estadoProceso === 'EN LEVANTAMIENTO DE EMBARGO');
     const procesosCerrados = procesosFiltrados.filter(p => p.estadoProceso === 'CERRADO');
+    const procesosEnMora = procesosFiltrados.filter(p => p.estadoProceso === 'EN MORA');
+    const procesosDefensa = procesosFiltrados.filter(p => p.estadoProceso === 'EN DEFENSA DEL CONTRIBUYENTE');
+
+    // Próximos a prescripción: deudas entre 4.5 y 5 años
+    const today = new Date();
+    const procesosProxPrescripcion = procesosFiltrados.filter(p => {
+        if (!p.fechaInicio) return false;
+        const diffTime = Math.abs(today - new Date(p.fechaInicio));
+        const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365.25);
+        return diffYears > 4.5 && diffYears <= 5;
+    });
+
+    // Catalogación automática de cuantía
+    const calcCuantia = (valor) => {
+        if (valor < 50000) return 'Pequeña';
+        if (valor <= 2000000) return 'Mediana';
+        return 'Grande';
+    };
 
     const currentData = {
         kpis: [
-            { label: 'Total Procesos', value: procesosFiltrados.length, dinero: `$ ${sumValores(procesosFiltrados).toLocaleString('es-CO')}`, bg: '#eef2ff', color: '#4f46e5' },
-            { label: 'Procesos Activos', value: procesosActivos.length, dinero: `$ ${sumValores(procesosActivos).toLocaleString('es-CO')}`, bg: '#fef2f2', color: '#ef4444' },
-            { label: 'En Levantamiento', value: procesosLevantamiento.length, dinero: `$ ${sumValores(procesosLevantamiento).toLocaleString('es-CO')}`, bg: '#ecfeff', color: '#06b6d4' },
-            { label: 'Procesos Cerrados', value: procesosCerrados.length, dinero: `$ ${sumValores(procesosCerrados).toLocaleString('es-CO')}`, bg: '#ecfdf5', color: '#10b981' }
+            { label: 'Total Procesos', value: procesosFiltrados.length, dinero: `$ ${sumValores(procesosFiltrados).toLocaleString('es-CO')}`, bg: '#eef2ff', color: '#4f46e5', icon: '📋', rawLabel: null },
+            { label: 'Aperturado', value: procesosFiltrados.filter(p => p.estadoProceso === 'APERTURADO').length, dinero: `$ ${sumValores(procesosFiltrados.filter(p => p.estadoProceso === 'APERTURADO')).toLocaleString('es-CO')}`, bg: '#eff6ff', color: '#3b82f6', icon: '📂', rawLabel: 'APERTURADO' },
+            { label: 'En Notificación', value: procesosFiltrados.filter(p => p.estadoProceso === 'EN NOTIFICACION').length, dinero: `$ ${sumValores(procesosFiltrados.filter(p => p.estadoProceso === 'EN NOTIFICACION')).toLocaleString('es-CO')}`, bg: '#fffbeb', color: '#d97706', icon: '📨', rawLabel: 'EN NOTIFICACION' },
+            { label: 'En Ejecución', value: procesosFiltrados.filter(p => p.estadoProceso === 'EN EJECUCION').length, dinero: `$ ${sumValores(procesosFiltrados.filter(p => p.estadoProceso === 'EN EJECUCION')).toLocaleString('es-CO')}`, bg: '#f5f3ff', color: '#8b5cf6', icon: '⚙️', rawLabel: 'EN EJECUCION' },
+            { label: 'En Mora', value: procesosEnMora.length, dinero: `$ ${sumValores(procesosEnMora).toLocaleString('es-CO')}`, bg: '#fff1f2', color: '#be123c', icon: '🔴', rawLabel: 'EN MORA' },
+            { label: 'En Defensa Contribuyente', value: procesosDefensa.length, dinero: `$ ${sumValores(procesosDefensa).toLocaleString('es-CO')}`, bg: '#f5f3ff', color: '#7c3aed', icon: '🛡️', rawLabel: 'EN DEFENSA DEL CONTRIBUYENTE' },
+            { label: 'Levantamiento Embargo', value: procesosLevantamiento.length, dinero: `$ ${sumValores(procesosLevantamiento).toLocaleString('es-CO')}`, bg: '#ecfeff', color: '#06b6d4', icon: '⚖️', rawLabel: 'EN LEVANTAMIENTO DE EMBARGO' },
+            { label: 'Pendiente Cierre', value: procesosFiltrados.filter(p => p.estadoProceso === 'PENDIENTE CIERRE').length, dinero: `$ ${sumValores(procesosFiltrados.filter(p => p.estadoProceso === 'PENDIENTE CIERRE')).toLocaleString('es-CO')}`, bg: '#fefce8', color: '#a16207', icon: '⏳', rawLabel: 'PENDIENTE CIERRE' },
+            { label: 'Cerrado', value: procesosCerrados.length, dinero: `$ ${sumValores(procesosCerrados).toLocaleString('es-CO')}`, bg: '#ecfdf5', color: '#10b981', icon: '✅', rawLabel: 'CERRADO' },
+        ],
+        kpisExtra: [
+            { label: 'Próximos a Prescribir', value: procesosProxPrescripcion.length, dinero: `$ ${sumValores(procesosProxPrescripcion).toLocaleString('es-CO')}`, bg: '#fefce8', color: '#a16207', icon: '⏳', rawLabel: '_PRESCRIPCION' },
+        ],
+        sincronizacion: [
+            { label: 'Cartera Grande (>$2M)', count: procesosFiltrados.filter(p => calcCuantia(p.valor) === 'Grande').length, color: '#dc2626', bg: '#fef2f2' },
+            { label: 'Cartera Mediana ($50k-$2M)', count: procesosFiltrados.filter(p => calcCuantia(p.valor) === 'Mediana').length, color: '#d97706', bg: '#fffbeb' },
+            { label: 'Cartera Pequeña (<$50k)', count: procesosFiltrados.filter(p => calcCuantia(p.valor) === 'Pequeña').length, color: '#059669', bg: '#ecfdf5' },
         ],
         chartData: [
             { estado: 'Aperturado', rawEstado: 'APERTURADO', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'APERTURADO').length, color: '#3b82f6' },
             { estado: 'En Notificac.', rawEstado: 'EN NOTIFICACION', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'EN NOTIFICACION').length, color: '#f59e0b' },
             { estado: 'En Ejecución', rawEstado: 'EN EJECUCION', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'EN EJECUCION').length, color: '#8b5cf6' },
             { estado: 'En Mora', rawEstado: 'EN MORA', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'EN MORA').length, color: '#ef4444' },
+            { estado: 'En Defensa', rawEstado: 'EN DEFENSA DEL CONTRIBUYENTE', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'EN DEFENSA DEL CONTRIBUYENTE').length, color: '#7c3aed' },
             { estado: 'Levantamiento', rawEstado: 'EN LEVANTAMIENTO DE EMBARGO', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'EN LEVANTAMIENTO DE EMBARGO').length, color: '#06b6d4' },
             { estado: 'Cerrado', rawEstado: 'CERRADO', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'CERRADO').length, color: '#10b981' }
         ]
     };
 
     const kpis = currentData.kpis;
+    const kpisExtra = currentData.kpisExtra;
+    const sincronizacion = currentData.sincronizacion;
     const chartData = currentData.chartData;
     const maxValue = Math.max(...chartData.map(d => d.conteo), 1);
 
@@ -85,6 +119,55 @@ const DashboardView = ({ procesosExternos = [] }) => {
     };
 
     const closeModal = () => setModalData(null);
+
+    const exportToCSV = () => {
+        const headers = ["Nombre", "Identificacion", "Obligacion", "Estado", "Fecha Inicio", "Valor", "Cuantia", "Prescripcion"];
+        const rows = procesosFiltrados.map(p => [
+            `"${p.nombre}"`, 
+            p.identificacion, 
+            p.numObligacion, 
+            p.estadoProceso, 
+            p.fechaInicio, 
+            `"${p.valor.toLocaleString('es-CO')}"`, 
+            p.cuantia, 
+            p.prescripcion
+        ]);
+        
+        const BOM = "\uFEFF";
+        let csvContent = BOM + headers.join(";") + "\n" 
+            + rows.map(e => e.join(";")).join("\n");
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", "resumen_general.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const [filtroMasaRazonSocial, setFiltroMasaRazonSocial] = useState('');
+    const [filtroMasaCedula, setFiltroMasaCedula] = useState('');
+    const [filtroMasaEstado, setFiltroMasaEstado] = useState('');
+
+    const procesosTablaFiltrados = procesosFiltrados.filter(p => {
+        const matchRazon = p.nombre.toLowerCase().includes(filtroMasaRazonSocial.toLowerCase());
+        const matchCedula = p.identificacion.toLowerCase().includes(filtroMasaCedula.toLowerCase());
+        const matchEstado = filtroMasaEstado === '' || p.estadoProceso === filtroMasaEstado;
+        return matchRazon && matchCedula && matchEstado;
+    });
+
+    const [paginaActual, setPaginaActual] = useState(1);
+    const registrosPorPagina = 10;
+    const indiceUltimoRegistro = paginaActual * registrosPorPagina;
+    const indicePrimerRegistro = indiceUltimoRegistro - registrosPorPagina;
+    const registrosActuales = procesosTablaFiltrados.slice(indicePrimerRegistro, indiceUltimoRegistro);
+    const totalPaginas = Math.ceil(procesosTablaFiltrados.length / registrosPorPagina) || 1;
+
+    useEffect(() => {
+        setPaginaActual(1);
+    }, [filtroMasaRazonSocial, filtroMasaCedula, filtroMasaEstado, procesosFiltrados]);
 
     return (
         <div style={{ position: 'relative' }}>
@@ -170,7 +253,7 @@ const DashboardView = ({ procesosExternos = [] }) => {
                     <h1 className="page-title">Tablero de Control - Cobro Coactivo</h1>
                     <p className="page-subtitle">Monitoreo general del estado de los procesos y cartera.</p>
                 </div>
-                <div style={{ display: 'flex', gap: '1rem' }}>
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>Año</label>
                         <select
@@ -214,34 +297,101 @@ const DashboardView = ({ procesosExternos = [] }) => {
                             <option value="Diciembre">Diciembre</option>
                         </select>
                     </div>
+                    
+                    <button className="btn" onClick={exportToCSV} style={{ backgroundColor: '#10b981', border: 'none', height: '40px', display: 'flex', alignItems: 'center' }}>
+                        ⬇ Descargar CSV
+                    </button>
                 </div>
             </div>
 
-            {/* KPIs */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '3rem' }}>
-                {kpis.map((kpi, idx) => (
+            {/* KPI Total — encabezado */}
+            <div
+                className="card"
+                onClick={() => handleItemClick(kpis[0].label, kpis[0].value)}
+                style={{
+                    backgroundColor: kpis[0].bg, padding: '1.2rem 2rem', border: 'none',
+                    display: 'flex', alignItems: 'center', gap: '1.5rem',
+                    cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s', marginBottom: '1rem'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.1)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow)'; }}
+            >
+                <span style={{ fontSize: '2rem' }}>{kpis[0].icon}</span>
+                <div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: '600', color: kpis[0].color, textTransform: 'uppercase' }}>{kpis[0].label}</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '1.5rem' }}>
+                        <span style={{ fontSize: '2.2rem', fontWeight: 'bold', color: kpis[0].color }}>{kpis[0].value}</span>
+                        <span style={{ fontSize: '1rem', fontWeight: '600', color: kpis[0].color, opacity: 0.8 }}>{kpis[0].dinero}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* KPIs por Estado — los 8 estados */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
+                {kpis.slice(1).map((kpi, idx) => (
+                    <div
+                        key={idx}
+                        className="card"
+                        onClick={() => handleItemClick(`Estado: ${kpi.label}`, kpi.value, kpi.rawLabel)}
+                        style={{
+                            backgroundColor: kpi.bg, padding: '1rem', border: `1px solid ${kpi.color}22`,
+                            display: 'flex', flexDirection: 'column', alignItems: 'center',
+                            cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.1)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow)'; }}
+                    >
+                        <span style={{ fontSize: '1.3rem', marginBottom: '0.2rem' }}>{kpi.icon}</span>
+                        <span style={{ fontSize: '0.7rem', fontWeight: '600', color: kpi.color, textTransform: 'uppercase', marginBottom: '0.3rem', textAlign: 'center', lineHeight: '1.2' }}>
+                            {kpi.label}
+                        </span>
+                        <span style={{ fontSize: '1.8rem', fontWeight: 'bold', color: kpi.color, lineHeight: '1.1' }}>
+                            {kpi.value}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', fontWeight: '600', color: kpi.color, opacity: 0.8 }}>
+                            {kpi.dinero}
+                        </span>
+                    </div>
+                ))}
+            </div>
+
+            {/* Indicador especial: Próximos a Prescribir + Sincronización de Cartera */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem', marginBottom: '2rem' }}>
+                {/* Prescripción */}
+                {kpisExtra.map((kpi, idx) => (
                     <div
                         key={idx}
                         className="card"
                         onClick={() => handleItemClick(kpi.label, kpi.value)}
                         style={{
-                            backgroundColor: kpi.bg, padding: '1.5rem', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center',
+                            backgroundColor: kpi.bg, padding: '1.2rem 1.5rem', border: `2px solid ${kpi.color}44`,
+                            display: 'flex', alignItems: 'center', gap: '1rem',
                             cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s',
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.1)'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.1)'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow)'; }}
                     >
-                        <span style={{ fontSize: '0.9rem', fontWeight: '500', color: kpi.color, textTransform: 'uppercase', marginBottom: '0.5rem' }}>
-                            {kpi.label}
-                        </span>
-                        <span style={{ fontSize: '2.5rem', fontWeight: 'bold', color: kpi.color, lineHeight: '1.2' }}>
-                            {kpi.value}
-                        </span>
-                        <span style={{ fontSize: '1.1rem', fontWeight: '600', color: kpi.color, opacity: 0.85 }}>
-                            {kpi.dinero}
-                        </span>
+                        <span style={{ fontSize: '2rem' }}>{kpi.icon}</span>
+                        <div>
+                            <div style={{ fontSize: '0.8rem', fontWeight: '600', color: kpi.color, textTransform: 'uppercase' }}>{kpi.label}</div>
+                            <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: kpi.color, lineHeight: '1.2' }}>{kpi.value} procesos</div>
+                            <div style={{ fontSize: '0.8rem', color: kpi.color, opacity: 0.8 }}>{kpi.dinero}</div>
+                        </div>
                     </div>
                 ))}
+
+                {/* Sincronización de Cartera */}
+                <div className="card" style={{ padding: '1.2rem 1.5rem' }}>
+                    <h3 style={{ margin: '0 0 0.75rem 0', color: 'var(--color-primary)', fontSize: '0.95rem' }}>📊 Catalogación de Cartera</h3>
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                        {sincronizacion.map((s, idx) => (
+                            <div key={idx} style={{ flex: 1, backgroundColor: s.bg, padding: '0.6rem 0.8rem', borderRadius: '8px', border: `1px solid ${s.color}44`, textAlign: 'center' }}>
+                                <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: s.color }}>{s.count}</div>
+                                <div style={{ fontSize: '0.7rem', color: '#4b5563', fontWeight: '600', marginTop: '0.1rem' }}>{s.label}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
@@ -300,38 +450,151 @@ const DashboardView = ({ procesosExternos = [] }) => {
                 </div>
 
                 {/* Lista de alertas recientes */}
-                <div className="card">
-                    <h3 style={{ marginBottom: '1.5rem', color: 'var(--color-primary)' }}>Notificaciones Recientes</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <div
-                            onClick={() => handleItemClick('Procesos próximos a prescripción', 45)}
-                            style={{ padding: '1rem', borderLeft: '4px solid #f59e0b', backgroundColor: '#fffbeb', borderRadius: '4px', cursor: 'pointer', transition: 'background-color 0.2s' }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fef3c7'}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fffbeb'}
-                        >
-                            <p style={{ margin: 0, fontWeight: '500', fontSize: '0.9rem' }}>45 procesos próximos a prescripción</p>
-                            <span style={{ fontSize: '0.8rem', color: '#d97706' }}>Hace 2 horas</span>
-                        </div>
-                        <div
-                            onClick={() => handleItemClick('Acuerdos de pago liquidados hoy', 8)}
-                            style={{ padding: '1rem', borderLeft: '4px solid #10b981', backgroundColor: '#ecfdf5', borderRadius: '4px', cursor: 'pointer', transition: 'background-color 0.2s' }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#d1fae5'}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ecfdf5'}
-                        >
-                            <p style={{ margin: 0, fontWeight: '500', fontSize: '0.9rem' }}>8 acuerdos de pago liquidados hoy</p>
-                            <span style={{ fontSize: '0.8rem', color: '#059669' }}>Hace 5 horas</span>
-                        </div>
-                        <div
-                            onClick={() => handleItemClick('Nueva sincronización de cartera completada', 1)}
-                            style={{ padding: '1rem', borderLeft: '4px solid #6366f1', backgroundColor: '#eef2ff', borderRadius: '4px', cursor: 'pointer', transition: 'background-color 0.2s' }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e0e7ff'}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#eef2ff'}
-                        >
-                            <p style={{ margin: 0, fontWeight: '500', fontSize: '0.9rem' }}>Nueva sincronización de cartera completada</p>
-                            <span style={{ fontSize: '0.8rem', color: '#4f46e5' }}>Ayer</span>
-                        </div>
+                <div className="card" style={{ maxHeight: '350px', display: 'flex', flexDirection: 'column' }}>
+                    <h3 style={{ marginBottom: '1.5rem', color: 'var(--color-primary)' }}>Notificaciones Recientes (Últimos 50)</h3>
+                    <div style={{ overflowY: 'auto', flex: 1, paddingRight: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                        {procesosExternos.slice(0, 50).map((p, idx) => (
+                            <div
+                                key={idx}
+                                style={{ padding: '0.8rem', borderLeft: '4px solid #3b82f6', backgroundColor: '#f8fafc', borderRadius: '4px' }}
+                            >
+                                <p style={{ margin: 0, fontWeight: '500', fontSize: '0.85rem' }}>{p.consecutivo} - {p.nombre}</p>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.3rem' }}>
+                                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{p.estadoProceso}</span>
+                                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{p.fechaInicio}</span>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
+            </div>
+
+            {/* Filtros para la Tabla General */}
+            <div className="card" style={{ marginTop: '2rem' }}>
+                <h3 style={{ marginBottom: '1rem', color: 'var(--color-primary)' }}>Buscar en el Listado General</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem' }}>
+                    <div>
+                        <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Nombre / Razón Social</label>
+                        <input 
+                            type="text" 
+                            className="p-2 mt-1" 
+                            style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px' }}
+                            placeholder="Buscar por nombre..."
+                            value={filtroMasaRazonSocial}
+                            onChange={(e) => setFiltroMasaRazonSocial(e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Identificación</label>
+                        <input 
+                            type="text" 
+                            className="p-2 mt-1" 
+                            style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px' }}
+                            placeholder="Buscar por identificación..."
+                            value={filtroMasaCedula}
+                            onChange={(e) => setFiltroMasaCedula(e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Estado del Proceso</label>
+                        <select 
+                            className="p-2 mt-1" 
+                            style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px' }}
+                            value={filtroMasaEstado}
+                            onChange={(e) => setFiltroMasaEstado(e.target.value)}
+                        >
+                            <option value="">Todos los Estados</option>
+                            <option value="APERTURADO">APERTURADO</option>
+                            <option value="EN NOTIFICACION">EN NOTIFICACION</option>
+                            <option value="EN EJECUCION">EN EJECUCION</option>
+                            <option value="EN DEFENSA DEL CONTRIBUYENTE">EN DEFENSA DEL CONTRIBUYENTE</option>
+                            <option value="EN MORA">EN MORA</option>
+                            <option value="EN LEVANTAMIENTO DE EMBARGO">EN LEVANTAMIENTO DE EMBARGO</option>
+                            <option value="PENDIENTE CIERRE">PENDIENTE CIERRE</option>
+                            <option value="CERRADO">CERRADO</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            {/* Tabla General de Procesos */}
+            <div className="card" style={{ marginTop: '2rem' }}>
+                <h3 style={{ marginBottom: '1.5rem', color: 'var(--color-primary)' }}>Listado General de Procesos (Todos los estados)</h3>
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', backgroundColor: '#fafafa', borderRadius: 'var(--radius-sm)' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '2px solid var(--color-border)', backgroundColor: '#efefef' }}>
+                                <th style={{ padding: '1rem' }}>Nombre</th>
+                                <th style={{ padding: '1rem' }}>Identificación</th>
+                                <th style={{ padding: '1rem' }}>Obligación</th>
+                                <th style={{ padding: '1rem' }}>Cuantía</th>
+                                <th style={{ padding: '1rem' }}>Prescripción</th>
+                                <th style={{ padding: '1rem' }}>Estado</th>
+                                <th style={{ padding: '1rem' }}>Fecha Inicio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {registrosActuales.map((proceso, idx) => (
+                                <tr key={idx} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                    <td style={{ padding: '1rem', fontWeight: '500' }}>{proceso.nombre}</td>
+                                    <td style={{ padding: '1rem' }}>{proceso.identificacion}</td>
+                                    <td style={{ padding: '1rem' }}>{proceso.numObligacion}</td>
+                                    <td style={{ padding: '1rem' }}>
+                                        {(() => {
+                                            const cuantiaCalc = proceso.valor < 50000 ? 'Pequeña' : proceso.valor <= 2000000 ? 'Mediana' : 'Grande';
+                                            const bgC = cuantiaCalc === 'Grande' ? '#fee2e2' : cuantiaCalc === 'Mediana' ? '#fef3c7' : '#ecfdf5';
+                                            const clrC = cuantiaCalc === 'Grande' ? '#991b1b' : cuantiaCalc === 'Mediana' ? '#92400e' : '#065f46';
+                                            return <span style={{ backgroundColor: bgC, color: clrC, padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>{cuantiaCalc}</span>;
+                                        })()}
+                                    </td>
+                                    <td style={{ padding: '1rem' }}>
+                                        <span style={{ 
+                                            backgroundColor: proceso.prescripcion === 'Prescrita' ? '#f3f4f6' : proceso.prescripcion === 'Por Prescribir' ? '#fee2e2' : '#ecfdf5',
+                                            color: proceso.prescripcion === 'Prescrita' ? '#374151' : proceso.prescripcion === 'Por Prescribir' ? '#dc2626' : '#059669',
+                                            padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold'
+                                        }}>{proceso.prescripcion}</span>
+                                    </td>
+                                    <td style={{ padding: '1rem', fontWeight: '600' }}>
+                                        <span style={{ 
+                                            color: proceso.estadoProceso === 'APERTURADO' ? '#3b82f6' :
+                                                    proceso.estadoProceso === 'EN NOTIFICACION' ? '#f59e0b' :
+                                                    proceso.estadoProceso === 'EN EJECUCION' ? '#8b5cf6' :
+                                                    proceso.estadoProceso === 'EN MORA' ? '#ef4444' :
+                                                    proceso.estadoProceso === 'EN LEVANTAMIENTO DE EMBARGO' ? '#06b6d4' :
+                                                    '#10b981'
+                                        }}>
+                                            {proceso.estadoProceso}
+                                        </span>
+                                    </td>
+                                    <td style={{ padding: '1rem' }}>{proceso.fechaInicio}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Paginación UI */}
+                {totalPaginas > 1 && (
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1.5rem', gap: '0.5rem', alignItems: 'center' }}>
+                        <button
+                            className="btn btn-outline"
+                            disabled={paginaActual === 1}
+                            onClick={() => setPaginaActual(paginaActual - 1)}
+                            style={{ padding: '0.5rem 1rem' }}
+                        >
+                            Ant.
+                        </button>
+                        <span style={{ fontWeight: '500', color: 'var(--color-text-light)' }}>Página {paginaActual} de {totalPaginas}</span>
+                        <button
+                            className="btn btn-outline"
+                            disabled={paginaActual === totalPaginas}
+                            onClick={() => setPaginaActual(paginaActual + 1)}
+                            style={{ padding: '0.5rem 1rem' }}
+                        >
+                            Sig.
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

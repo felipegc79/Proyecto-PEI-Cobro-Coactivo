@@ -1,11 +1,36 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import IndicadorAsignacion from '../Shared/IndicadorAsignacion';
 import { FileText, Mail, Send } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 
-const EmbargoView = ({ userName }) => {
+const EmbargoView = ({ userName, procesosExternos = [] }) => {
+    const location = useLocation();
+    const procesoRouteState = location.state?.procesoPreseleccionado || null;
+
     const [activeMainTab, setActiveMainTab] = useState('embargo'); // 'embargo' | 'levantamiento'
+    
+    // Panel de búsqueda
+    const [busqueda, setBusqueda] = useState('');
+    const [procesoVinculado, setProcesoVinculado] = useState(procesoRouteState);
+
+    useEffect(() => {
+        if (procesoRouteState) {
+            setProcesoVinculado(procesoRouteState);
+        }
+    }, [procesoRouteState]);
+
+    const handleBuscarProceso = () => {
+        const found = procesosExternos.find(p => p.consecutivo.includes(busqueda) || p.identificacion.includes(busqueda));
+        if (found) {
+            setProcesoVinculado(found);
+            alert(`Proceso vinculado exitosamente: ${found.consecutivo} - ${found.nombre}`);
+        } else {
+            alert('No se encontró ningún proceso con ese consecutivo o identificación.');
+        }
+    };
+
     const [bienes, setBienes] = useState({
         salarios: { fecha: '', empresa: '', valor: '' },
         bancarios: { fecha: '', entidad: '', saldo: '' },
@@ -21,6 +46,11 @@ const EmbargoView = ({ userName }) => {
     const [selectedParaLevantamiento, setSelectedParaLevantamiento] = useState(null);
 
     const handleGenerarSolicitud = () => {
+        if (!procesoVinculado) {
+            alert('Por favor busque y vincule un proceso primero.');
+            return;
+        }
+
         if (pdfRef.current) {
             pdfRef.current.style.position = 'absolute';
             pdfRef.current.style.top = '0px';
@@ -34,7 +64,7 @@ const EmbargoView = ({ userName }) => {
                 const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
                 pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-                pdf.save(`Solicitud_Embargo.pdf`);
+                pdf.save(`Solicitud_Embargo_${procesoVinculado.identificacion}.pdf`);
 
                 pdfRef.current.style.top = '-10000px';
                 pdfRef.current.style.left = '-10000px';
@@ -101,6 +131,31 @@ const EmbargoView = ({ userName }) => {
             <p className="page-subtitle">Formulario de identificación de bienes y solicitud de medidas preventivas.</p>
 
             <IndicadorAsignacion area="Fiscalización / Medidas" funcionario={userName || "Dra. Leticia Torres"} />
+
+            <div className="card" style={{ marginBottom: '2rem', backgroundColor: '#eef2ff', border: '1px solid #c7d2fe' }}>
+                <h3 style={{ color: 'var(--color-primary)', borderBottom: '1px solid #c7d2fe', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Vinculación de Proceso</h3>
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Buscar por Consecutivo o Identificación</label>
+                        <input 
+                            type="text" 
+                            className="p-2" 
+                            value={busqueda} 
+                            onChange={(e) => setBusqueda(e.target.value)} 
+                            placeholder="Ej. CC-2026-1025 o 43059073" 
+                            style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px' }} 
+                        />
+                    </div>
+                    <button className="btn" onClick={handleBuscarProceso} style={{ backgroundColor: '#2563eb' }}>
+                        Buscar y Vincular
+                    </button>
+                </div>
+                {procesoVinculado && (
+                    <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '4px' }}>
+                        <p style={{ margin: 0, color: '#065f46' }}><strong>Proceso Vinculado:</strong> {procesoVinculado.consecutivo} - {procesoVinculado.nombre} (ID: {procesoVinculado.identificacion})</p>
+                    </div>
+                )}
+            </div>
 
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
                 <button
@@ -240,6 +295,16 @@ const EmbargoView = ({ userName }) => {
                     </div>
 
                     <p><strong>Fecha de Generación:</strong> {new Date().toLocaleDateString('es-CO')}</p>
+                    
+                    {procesoVinculado && (
+                        <>
+                            <h3 style={{ borderBottom: '1px solid #ccc', paddingBottom: '5px', marginTop: '20px' }}>Información del Expediente</h3>
+                            <p><strong>Contribuyente:</strong> {procesoVinculado.nombre}</p>
+                            <p><strong>Identificación:</strong> {procesoVinculado.identificacion}</p>
+                            <p><strong>Consecutivo de Proceso:</strong> {procesoVinculado.consecutivo}</p>
+                            <p><strong>Valor Obligación:</strong> ${procesoVinculado.valor.toLocaleString('es-CO')}</p>
+                        </>
+                    )}
 
                     <h3 style={{ borderBottom: '1px solid #ccc', paddingBottom: '5px', marginTop: '30px' }}>1. Información de Salarios</h3>
                     <p><strong>Fecha Consulta:</strong> {bienes.salarios.fecha || 'N/A'}</p>
