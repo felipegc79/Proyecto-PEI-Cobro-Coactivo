@@ -23,16 +23,28 @@ const LoginView = ({ onLogin }) => {
             return;
         }
 
+        // Mapeo de IDs a Nombres Reales para consistencia
+        const USER_MAPPING = {
+            'admin': 'Felipe Guzmán',
+            'luis525': 'Luis Gutierrez',
+            'carlosr': 'Carlos Rodríguez',
+            'anam': 'Ana Martínez',
+            'luisf': 'Luis Fernández',
+            'mariag': 'María Gómez'
+        };
+
+        const getDisplayName = (id) => USER_MAPPING[id.toLowerCase()] || id;
+
         // Recuperar usuarios registrados de localStorage
         const users = JSON.parse(localStorage.getItem('coactivo_users') || '[]');
         const foundUser = users.find(u => u.username === username);
 
         if (foundUser) {
-            onLogin(foundUser.rol, foundUser.nombreCompleto || username);
-        } else if (username.includes('admin')) {
-            onLogin('Administrador', username);
+            onLogin(foundUser.rol, foundUser.nombreCompleto || getDisplayName(username));
+        } else if (username.toLowerCase().includes('admin')) {
+            onLogin('Administrador', getDisplayName(username));
         } else {
-            onLogin('Abogado', username);
+            onLogin('Abogado', getDisplayName(username));
         }
     };
 

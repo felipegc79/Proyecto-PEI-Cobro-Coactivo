@@ -8,6 +8,7 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
     const [filtroRazonSocial, setFiltroRazonSocial] = useState('');
     const [filtroCedula, setFiltroCedula] = useState('');
     const [filtroConsecutivo, setFiltroConsecutivo] = useState('');
+    const [filtroEstado, setFiltroEstado] = useState('');
     const [selectedProceso, setSelectedProceso] = useState(null);
     const [activeTab, setActiveTab] = useState('telefonica');
     
@@ -159,7 +160,8 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
     const procesosFiltrados = procesos.filter(p => {
         const matchesFilters = p.nombre.toLowerCase().includes(filtroRazonSocial.toLowerCase()) &&
             p.identificacion.includes(filtroCedula) &&
-            p.consecutivo.toLowerCase().includes(filtroConsecutivo.toLowerCase());
+            p.consecutivo.toLowerCase().includes(filtroConsecutivo.toLowerCase()) &&
+            (filtroEstado === '' || p.estadoProceso === filtroEstado);
             
         if (userRole === 'Abogado') {
              // Abogados solo ven los casos que tienen asignados (su userName debe coincidir con el funcionarioAsignado)
@@ -743,6 +745,25 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
                             style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px' }}
                         />
                     </div>
+                    <div className="form-group">
+                        <label style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>Estado del Proceso</label>
+                        <select 
+                            className="p-2" 
+                            value={filtroEstado}
+                            onChange={(e) => setFiltroEstado(e.target.value)}
+                            style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px' }}
+                        >
+                            <option value="">-- Todos los Estados --</option>
+                            <option value="APERTURADO">Aperturado</option>
+                            <option value="EN NOTIFICACION">En Notificación</option>
+                            <option value="EN DEFENSA DEL CONTRIBUYENTE">En Defensa</option>
+                            <option value="EN EJECUCION">En Ejecución</option>
+                            <option value="EN MORA">En Mora</option>
+                            <option value="EN LEVANTAMIENTO DE EMBARGO">En Levantamiento</option>
+                            <option value="PENDIENTE CIERRE">Pendiente de Cierre</option>
+                            <option value="CERRADO">Cerrado</option>
+                        </select>
+                    </div>
                     <button className="btn" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
                         <Search size={18} /> Buscar
                     </button>
@@ -985,8 +1006,14 @@ const SeguimientoView = ({ procesosExternos, setProcesosExternos, userRole = 'Ad
                             <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '0.5rem' }}>Canal de Envío</label>
                             <select className="p-2" value={massNotifyType} onChange={e => setMassNotifyType(e.target.value)} style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px' }}>
                                 <option value="email">Correo Electrónico</option>
+                                <option value="personal">Notificación Personal (PDF + Email)</option>
                                 <option value="sms">SMS</option>
                             </select>
+                            {massNotifyType === 'personal' && (
+                                <p style={{ fontSize: '0.8rem', color: '#059669', marginTop: '0.5rem', marginBottom: 0 }}>
+                                    📄 Se generará un PDF dinámico de notificación personal para cada contribuyente seleccionado y se enviará automáticamente a su correo electrónico registrado.
+                                </p>
+                            )}
                         </div>
 
                         <div className="form-group" style={{ marginBottom: '1rem' }}>

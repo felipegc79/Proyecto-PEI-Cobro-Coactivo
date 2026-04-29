@@ -73,6 +73,7 @@ const DashboardView = ({ procesosExternos = [] }) => {
             { estado: 'En Mora', rawEstado: 'EN MORA', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'EN MORA').length, color: '#ef4444' },
             { estado: 'En Defensa', rawEstado: 'EN DEFENSA DEL CONTRIBUYENTE', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'EN DEFENSA DEL CONTRIBUYENTE').length, color: '#7c3aed' },
             { estado: 'Levantamiento', rawEstado: 'EN LEVANTAMIENTO DE EMBARGO', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'EN LEVANTAMIENTO DE EMBARGO').length, color: '#06b6d4' },
+            { estado: 'Pend. Cierre', rawEstado: 'PENDIENTE CIERRE', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'PENDIENTE CIERRE').length, color: '#a16207' },
             { estado: 'Cerrado', rawEstado: 'CERRADO', conteo: procesosFiltrados.filter(p => p.estadoProceso === 'CERRADO').length, color: '#10b981' }
         ]
     };
@@ -394,23 +395,23 @@ const DashboardView = ({ procesosExternos = [] }) => {
                 </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
-                {/* Gráfico de Barras CSS puro */}
-                <div className="card">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                {/* Gráfico de Barras CSS puro — Ensanchado al 100% */}
+                <div className="card" style={{ width: '100%' }}>
                     <h3 style={{ marginBottom: '1.5rem', color: 'var(--color-primary)' }}>Procesos por Estado</h3>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', height: '250px', gap: '2rem', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', height: '300px', gap: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border)', overflowX: 'auto' }}>
                         {chartData.map((data, idx) => {
                             const heightPercentage = (data.conteo / maxValue) * 100;
                             return (
                                 <div
                                     key={idx}
-                                    style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}
+                                    style={{ flex: 1, minWidth: '80px', display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}
                                 >
-                                    <div style={{ marginBottom: '0.5rem', fontWeight: 'bold', color: 'var(--color-text)' }}>{data.conteo}</div>
+                                    <div style={{ marginBottom: '0.5rem', fontWeight: 'bold', color: 'var(--color-text)', fontSize: '1rem' }}>{data.conteo}</div>
                                     <div
                                         onClick={() => handleItemClick(`Estado: ${data.estado}`, data.conteo, data.rawEstado)}
                                         style={{
-                                            width: '60%',
+                                            width: '50%',
                                             height: `${heightPercentage}%`,
                                             background: `linear-gradient(to right, ${data.color}bb 0%, ${data.color} 50%, ${data.color}bb 100%)`,
                                             position: 'relative',
@@ -426,12 +427,12 @@ const DashboardView = ({ procesosExternos = [] }) => {
                                     >
                                         <div style={{
                                             position: 'absolute',
-                                            top: '-10px', /* Half of the height to perfectly sit on top */
+                                            top: '-10px',
                                             left: 0,
                                             width: '100%',
                                             height: '20px',
                                             backgroundColor: data.color,
-                                            borderRadius: '50%', /* Makes it elliptical */
+                                            borderRadius: '50%',
                                             boxShadow: 'inset 0 -2px 3px rgba(0,0,0,0.3)',
                                             zIndex: 2
                                         }}></div>
@@ -440,28 +441,28 @@ const DashboardView = ({ procesosExternos = [] }) => {
                             );
                         })}
                     </div>
-                    <div style={{ display: 'flex', gap: '2rem', marginTop: '1rem' }}>
+                    <div style={{ display: 'flex', gap: '1.5rem', marginTop: '1rem' }}>
                         {chartData.map((data, idx) => (
-                            <div key={idx} style={{ flex: 1, textAlign: 'center', fontSize: '0.85rem', fontWeight: '500' }}>
+                            <div key={idx} style={{ flex: 1, minWidth: '80px', textAlign: 'center', fontSize: '0.8rem', fontWeight: 'bold', color: '#4b5563' }}>
                                 {data.estado}
                             </div>
                         ))}
                     </div>
                 </div>
 
-                {/* Lista de alertas recientes */}
-                <div className="card" style={{ maxHeight: '350px', display: 'flex', flexDirection: 'column' }}>
+                {/* Lista de alertas recientes — Ahora debajo del gráfico */}
+                <div className="card" style={{ maxHeight: '400px', display: 'flex', flexDirection: 'column' }}>
                     <h3 style={{ marginBottom: '1.5rem', color: 'var(--color-primary)' }}>Notificaciones Recientes (Últimos 50)</h3>
-                    <div style={{ overflowY: 'auto', flex: 1, paddingRight: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                    <div style={{ overflowY: 'auto', flex: 1, paddingRight: '0.5rem', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
                         {procesosExternos.slice(0, 50).map((p, idx) => (
                             <div
                                 key={idx}
-                                style={{ padding: '0.8rem', borderLeft: '4px solid #3b82f6', backgroundColor: '#f8fafc', borderRadius: '4px' }}
+                                style={{ padding: '1rem', borderLeft: '5px solid #3b82f6', backgroundColor: '#f8fafc', borderRadius: '6px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
                             >
-                                <p style={{ margin: 0, fontWeight: '500', fontSize: '0.85rem' }}>{p.consecutivo} - {p.nombre}</p>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.3rem' }}>
-                                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{p.estadoProceso}</span>
-                                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{p.fechaInicio}</span>
+                                <p style={{ margin: 0, fontWeight: 'bold', fontSize: '0.9rem', color: '#1e293b' }}>{p.consecutivo} - {p.nombre}</p>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem' }}>
+                                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600' }}>{p.estadoProceso}</span>
+                                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{p.fechaInicio}</span>
                                 </div>
                             </div>
                         ))}

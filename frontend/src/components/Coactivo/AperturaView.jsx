@@ -6,6 +6,26 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import IndicadorAsignacion from '../Shared/IndicadorAsignacion';
 import FichaTecnicaModal from './EstadoCuenta/FichaTecnicaModal';
+import { Search } from 'lucide-react';
+
+// ─── Base de datos simulada de contribuyentes (para búsqueda predictiva) ───
+const DB_CONTRIBUYENTES = [
+    { identificacion: '21302454', nombre: 'Maria Gomez', obligaciones: [{ num: 'PR-2026-001', concepto: 'Impuesto Predial', valor: 450000 }, { num: 'IC-2026-042', concepto: 'Industria y Comercio', valor: 890000 }] },
+    { identificacion: '10234567', nombre: 'Juan Perez', obligaciones: [{ num: 'F001', concepto: 'Predial', valor: 35000 }, { num: 'F051', concepto: 'Industria y Comercio', valor: 120000 }] },
+    { identificacion: '10456789', nombre: 'Pedro Rodriguez', obligaciones: [{ num: 'F003', concepto: 'Predial', valor: 2500000 }, { num: 'F052', concepto: 'Valorización', valor: 800000 }] },
+    { identificacion: '10567890', nombre: 'Diana Lopez', obligaciones: [{ num: 'F004', concepto: 'Industria y Comercio', valor: 75000 }] },
+    { identificacion: '10678901', nombre: 'Carlos Martinez', obligaciones: [{ num: 'F005', concepto: 'Predial', valor: 1800000 }, { num: 'F053', concepto: 'Alumbrado Público', valor: 45000 }] },
+    { identificacion: '900100200', nombre: 'Empresa Soluciones S.A.S', obligaciones: [{ num: 'F006', concepto: 'Industria y Comercio', valor: 15000 }] },
+    { identificacion: '10789012', nombre: 'Ana Fernandez', obligaciones: [{ num: 'F007', concepto: 'Predial', valor: 980000 }, { num: 'F054', concepto: 'Industria y Comercio', valor: 320000 }] },
+    { identificacion: '10890123', nombre: 'Luis Garcia', obligaciones: [{ num: 'F008', concepto: 'Predial', valor: 3100000 }] },
+    { identificacion: '900200300', nombre: 'Empresa Transporte S.A.S', obligaciones: [{ num: 'F009', concepto: 'Industria y Comercio', valor: 45000 }, { num: 'F055', concepto: 'Multas', valor: 250000 }] },
+    { identificacion: '10901234', nombre: 'Carmen Torres', obligaciones: [{ num: 'F010', concepto: 'Predial', valor: 650000 }] },
+    { identificacion: '11012345', nombre: 'Jorge Ramirez', obligaciones: [{ num: 'F011', concepto: 'Predial', valor: 2200000 }, { num: 'F056', concepto: 'Industria y Comercio', valor: 150000 }] },
+    { identificacion: '900300400', nombre: 'Empresa Logística S.A.S', obligaciones: [{ num: 'F012', concepto: 'Industria y Comercio', valor: 30000 }] },
+    { identificacion: '11123456', nombre: 'Patricia Morales', obligaciones: [{ num: 'F013', concepto: 'Predial', valor: 1500000 }] },
+    { identificacion: '11234567', nombre: 'Andres Herrera', obligaciones: [{ num: 'F014', concepto: 'Predial', valor: 88000 }, { num: 'F057', concepto: 'Valorización', valor: 420000 }] },
+    { identificacion: '900400500', nombre: 'Empresa Comercial S.A.S', obligaciones: [{ num: 'F015', concepto: 'Industria y Comercio', valor: 2800000 }] },
+];
 
 const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, userName }) => {
     const [deudorActual, setDeudorActual] = useState(null);
@@ -24,6 +44,10 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
         areaResponsable: 'Jurídica',
         funcionarioAsignado: userName || '',
     });
+    // Predictive search state
+    const [searchId, setSearchId] = useState('');
+    const [foundContribuyente, setFoundContribuyente] = useState(null);
+    const [searchError, setSearchError] = useState('');
     const pdfRef = useRef(null);
 
     // We remove the static mockFacturas from here and derive it dynamically later
@@ -76,7 +100,7 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
 
                     const link = document.createElement('a');
                     link.href = url;
-                    link.download = `Borrador_Mandamiento_${deudorActual.identificacion}.pdf`;
+                    link.download = `Mandamiento_Pago_${deudorActual.identificacion}.pdf`;
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
@@ -456,7 +480,7 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
                             Volver al Listado
                         </button>
                         <button className="btn" onClick={procesarMandamiento} style={{ padding: '0.75rem 2rem', fontSize: '1rem' }}>
-                            Generar Borrador Mandamiento
+                            Generar Mandamiento
                         </button>
                     </div>
                 </>
@@ -521,41 +545,115 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
                 />
             )}
 
-            {/* Modal Crear Nuevo Proceso */}
+            {/* Modal Crear Nuevo Proceso — con Buscador Predictivo */}
             {showNuevoProcesoModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-                    <div className="card" style={{ width: '560px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto' }}>
+                    <div className="card" style={{ width: '620px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                             <h2 style={{ margin: 0, color: 'var(--color-primary)' }}>Crear Nuevo Proceso</h2>
-                            <button onClick={() => setShowNuevoProcesoModal(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.5rem' }}>&times;</button>
+                            <button onClick={() => { setShowNuevoProcesoModal(false); setFoundContribuyente(null); setSearchId(''); setSearchError(''); }} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.5rem' }}>&times;</button>
                         </div>
                         <p style={{ color: '#6b7280', marginBottom: '1.5rem', fontSize: '0.9rem' }}>El proceso quedará automáticamente en estado <strong>APERTURADO</strong>.</p>
-                        <form onSubmit={handleCrearNuevoProceso} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <div>
-                                <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Nombre / Razón Social *</label>
-                                <input type="text" className="p-2" value={nuevoProcesoForm.nombre} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, nombre: e.target.value})} required style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem' }} />
+
+                        {/* Buscador Predictivo por Cédula/NIT */}
+                        <div style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: '#eef2ff', borderRadius: '8px', border: '1px solid #c7d2fe' }}>
+                            <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '0.5rem' }}>
+                                🔍 Buscar Contribuyente por Cédula / NIT
+                            </label>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <input
+                                    type="text"
+                                    className="p-2"
+                                    value={searchId}
+                                    onChange={e => { setSearchId(e.target.value); setSearchError(''); }}
+                                    placeholder="Ingrese Cédula o NIT..."
+                                    style={{ flex: 1, border: '1px solid #a5b4fc', borderRadius: '4px' }}
+                                />
+                                <button
+                                    type="button"
+                                    className="btn"
+                                    onClick={() => {
+                                        if (!searchId.trim()) { setSearchError('Ingrese un número de identificación.'); return; }
+                                        const found = DB_CONTRIBUYENTES.find(c => c.identificacion === searchId.trim());
+                                        if (found) {
+                                            setFoundContribuyente(found);
+                                            setSearchError('');
+                                            const firstObl = found.obligaciones[0];
+                                            setNuevoProcesoForm(prev => ({
+                                                ...prev,
+                                                identificacion: found.identificacion,
+                                                nombre: found.nombre,
+                                                numObligacion: firstObl.num,
+                                                valor: firstObl.valor,
+                                            }));
+                                        } else {
+                                            setFoundContribuyente(null);
+                                            setSearchError('Contribuyente no encontrado en la base de datos. Puede ingresar los datos manualmente.');
+                                        }
+                                    }}
+                                    style={{ backgroundColor: '#4338ca', border: 'none', display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.5rem 1rem' }}
+                                >
+                                    <Search size={16} /> Buscar
+                                </button>
                             </div>
+                            {searchError && <p style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: 0 }}>{searchError}</p>}
+                            {foundContribuyente && (
+                                <div style={{ marginTop: '0.75rem', padding: '0.75rem', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '6px' }}>
+                                    <p style={{ margin: 0, color: '#065f46', fontSize: '0.85rem' }}>
+                                        ✅ <strong>{foundContribuyente.nombre}</strong> — {foundContribuyente.obligaciones.length} obligación(es) encontrada(s)
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        <form onSubmit={handleCrearNuevoProceso} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {/* Identificación — readonly si se encontró */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <div>
                                     <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Identificación / NIT *</label>
-                                    <input type="text" className="p-2" value={nuevoProcesoForm.identificacion} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, identificacion: e.target.value})} required style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem' }} />
+                                    <input type="text" className="p-2" value={nuevoProcesoForm.identificacion} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, identificacion: e.target.value})} required readOnly={!!foundContribuyente} style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem', backgroundColor: foundContribuyente ? '#f3f4f6' : 'white' }} />
                                 </div>
                                 <div>
-                                    <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Número de Obligación *</label>
-                                    <input type="text" className="p-2" value={nuevoProcesoForm.numObligacion} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, numObligacion: e.target.value})} required style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem' }} />
+                                    <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Nombre / Razón Social *</label>
+                                    <input type="text" className="p-2" value={nuevoProcesoForm.nombre} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, nombre: e.target.value})} required readOnly={!!foundContribuyente} style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem', backgroundColor: foundContribuyente ? '#f3f4f6' : 'white' }} />
                                 </div>
                             </div>
+
+                            {/* Obligación — Dropdown si hay múltiples */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <div>
-                                    <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Valor de la Obligación *</label>
-                                    <input type="number" className="p-2" value={nuevoProcesoForm.valor} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, valor: e.target.value})} required style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem' }} placeholder="$ 0" />
+                                    <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Número de Obligación *</label>
+                                    {foundContribuyente && foundContribuyente.obligaciones.length > 1 ? (
+                                        <select
+                                            className="p-2"
+                                            value={nuevoProcesoForm.numObligacion}
+                                            onChange={e => {
+                                                const obl = foundContribuyente.obligaciones.find(o => o.num === e.target.value);
+                                                setNuevoProcesoForm({...nuevoProcesoForm, numObligacion: e.target.value, valor: obl ? obl.valor : '' });
+                                            }}
+                                            required
+                                            style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem' }}
+                                        >
+                                            {foundContribuyente.obligaciones.map(o => (
+                                                <option key={o.num} value={o.num}>{o.num} — {o.concepto} ($ {o.valor.toLocaleString('es-CO')})</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <input type="text" className="p-2" value={nuevoProcesoForm.numObligacion} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, numObligacion: e.target.value})} required readOnly={!!foundContribuyente} style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem', backgroundColor: foundContribuyente ? '#f3f4f6' : 'white' }} />
+                                    )}
                                 </div>
+                                <div>
+                                    <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Valor de la Obligación *</label>
+                                    <input type="number" className="p-2" value={nuevoProcesoForm.valor} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, valor: e.target.value})} required readOnly={!!foundContribuyente} style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem', backgroundColor: foundContribuyente ? '#f3f4f6' : 'white' }} placeholder="$ 0" />
+                                </div>
+                            </div>
+
+                            {/* Fecha + Área + Funcionario — siempre manuales */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <div>
                                     <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Fecha de Inicio</label>
                                     <input type="date" className="p-2" value={nuevoProcesoForm.fechaInicio} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, fechaInicio: e.target.value})} style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem' }} />
                                 </div>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <div>
                                     <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Área Responsable</label>
                                     <select className="p-2" value={nuevoProcesoForm.areaResponsable} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, areaResponsable: e.target.value})} style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem' }}>
@@ -565,10 +663,10 @@ const AperturaView = ({ procesosExternos, setProcesosExternos, onAddProcess, use
                                         <option value="Cartera">Cartera</option>
                                     </select>
                                 </div>
-                                <div>
-                                    <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Nombre del Funcionario</label>
-                                    <input type="text" className="p-2" value={nuevoProcesoForm.funcionarioAsignado} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, funcionarioAsignado: e.target.value})} style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem' }} placeholder={userName || 'Funcionario asignado'} />
-                                </div>
+                            </div>
+                            <div>
+                                <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Nombre del Funcionario</label>
+                                <input type="text" className="p-2" value={nuevoProcesoForm.funcionarioAsignado} onChange={e => setNuevoProcesoForm({...nuevoProcesoForm, funcionarioAsignado: e.target.value})} style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px', marginTop: '0.3rem' }} placeholder={userName || 'Funcionario asignado'} />
                             </div>
                             <button type="submit" className="btn" style={{ marginTop: '1rem', width: '100%', backgroundColor: '#4f46e5', border: 'none' }}>Crear Proceso (APERTURADO)</button>
                         </form>

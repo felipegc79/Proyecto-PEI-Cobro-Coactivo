@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import IndicadorAsignacion from '../Shared/IndicadorAsignacion';
-import { FileText, Mail, Send } from 'lucide-react';
+import { FileText, Mail, Send, Search } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
 const EmbargoView = ({ userName, procesosExternos = [] }) => {
@@ -11,24 +11,33 @@ const EmbargoView = ({ userName, procesosExternos = [] }) => {
 
     const [activeMainTab, setActiveMainTab] = useState('embargo'); // 'embargo' | 'levantamiento'
     
-    // Panel de búsqueda
+    // Panel de búsqueda y vinculación múltiple
     const [busqueda, setBusqueda] = useState('');
-    const [procesoVinculado, setProcesoVinculado] = useState(procesoRouteState);
-
-    useEffect(() => {
-        if (procesoRouteState) {
-            setProcesoVinculado(procesoRouteState);
-        }
-    }, [procesoRouteState]);
+    const [procesosVinculados, setProcesosVinculados] = useState(procesoRouteState ? [procesoRouteState] : []);
+    const [resultadoBusqueda, setResultadoBusqueda] = useState(null);
 
     const handleBuscarProceso = () => {
-        const found = procesosExternos.find(p => p.consecutivo.includes(busqueda) || p.identificacion.includes(busqueda));
+        const found = procesosExternos.find(p => p.consecutivo.toUpperCase() === busqueda.toUpperCase() || p.identificacion === busqueda);
         if (found) {
-            setProcesoVinculado(found);
-            alert(`Proceso vinculado exitosamente: ${found.consecutivo} - ${found.nombre}`);
+            setResultadoBusqueda(found);
         } else {
             alert('No se encontró ningún proceso con ese consecutivo o identificación.');
+            setResultadoBusqueda(null);
         }
+    };
+
+    const handleVincular = (proceso) => {
+        if (procesosVinculados.find(p => p.id === proceso.id)) {
+            alert('Este proceso ya está vinculado.');
+            return;
+        }
+        setProcesosVinculados([...procesosVinculados, proceso]);
+        setResultadoBusqueda(null);
+        setBusqueda('');
+    };
+
+    const handleQuitarVinculo = (id) => {
+        setProcesosVinculados(procesosVinculados.filter(p => p.id !== id));
     };
 
     const [bienes, setBienes] = useState({
@@ -39,17 +48,35 @@ const EmbargoView = ({ userName, procesosExternos = [] }) => {
     const pdfRef = useRef(null);
     const levantamientoPdfRef = useRef(null);
 
-    const [mockPagados] = useState([
-        { id: 1, consecutivo: 'CC-2023-102', nombre: 'MARIA AMPARO ORTIZ DAVID', identificacion: '43059073', telefono: '31229111078', predio: '01-02-0000', matricula: '001-123', fechaPago: '2021-07-02' },
-        { id: 2, consecutivo: 'CC-2024-055', nombre: 'Empresa XYZ', identificacion: '900987654', telefono: '3001112233', predio: '03-04-5555', matricula: '002-444', fechaPago: '2024-03-15' },
-    ]);
+    // Levantamiento automático: Solo procesos pagados al 100%
+    const procesosParaLevantamiento = (procesosExternos || []).filter(p => p.valor === 0 || p.estadoProceso === 'CERRADO' || p.estadoProceso === 'EN LEVANTAMIENTO DE EMBARGO');
     const [selectedParaLevantamiento, setSelectedParaLevantamiento] = useState(null);
+    const [seleccionadosMasivos, setSeleccionadosMasivos] = useState([]);
 
-    const handleGenerarSolicitud = () => {
-        if (!procesoVinculado) {
-            alert('Por favor busque y vincule un proceso primero.');
+    const handleToggleSeleccion = (id) => {
+        if (seleccionadosMasivos.includes(id)) {
+            setSeleccionadosMasivos(seleccionadosMasivos.filter(sid => sid !== id));
+        } else {
+            setSeleccionadosMasivos([...seleccionadosMasivos, id]);
+        }
+    };
+
+    const handleGenerarMasivo = () => {
+        if (seleccionadosMasivos.length === 0) {
+            alert("Seleccione al menos un proceso.");
             return;
         }
+        alert(`Generando ${seleccionadosMasivos.length} resoluciones de levantamiento en bloque...`);
+        setSeleccionadosMasivos([]);
+    };
+
+    const handleGenerarSolicitud = () => {
+        if (procesosVinculados.length === 0) {
+            alert('Por favor busque y vincule al menos un proceso primero.');
+            return;
+        }
+
+        const primerProceso = procesosVinculados[0];
 
         if (pdfRef.current) {
             pdfRef.current.style.position = 'absolute';
@@ -64,7 +91,7 @@ const EmbargoView = ({ userName, procesosExternos = [] }) => {
                 const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
                 pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-                pdf.save(`Solicitud_Embargo_${procesoVinculado.identificacion}.pdf`);
+                pdf.save(`Solicitud_Embargo_${primerProceso.identificacion}.pdf`);
 
                 pdfRef.current.style.top = '-10000px';
                 pdfRef.current.style.left = '-10000px';
@@ -100,10 +127,6 @@ const EmbargoView = ({ userName, procesosExternos = [] }) => {
         }, 500);
     };
 
-    const handleEnviarCorreoLevantamiento = (proceso) => {
-        alert(`Resolución de Levantamiento enviada al correo registrado de ${proceso.nombre}`);
-    };
-
     const [archivosCargados, setArchivosCargados] = useState([]);
 
     const handleFileUpload = (e) => {
@@ -130,32 +153,70 @@ const EmbargoView = ({ userName, procesosExternos = [] }) => {
             <h1 className="page-title">Embargo y Medidas Cautelares</h1>
             <p className="page-subtitle">Formulario de identificación de bienes y solicitud de medidas preventivas.</p>
 
-            <IndicadorAsignacion area="Fiscalización / Medidas" funcionario={userName || "Dra. Leticia Torres"} />
+            <IndicadorAsignacion area="Fiscalización / Medidas" funcionario={userName} />
 
-            <div className="card" style={{ marginBottom: '2rem', backgroundColor: '#eef2ff', border: '1px solid #c7d2fe' }}>
-                <h3 style={{ color: 'var(--color-primary)', borderBottom: '1px solid #c7d2fe', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Vinculación de Proceso</h3>
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
-                    <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Buscar por Consecutivo o Identificación</label>
-                        <input 
-                            type="text" 
-                            className="p-2" 
-                            value={busqueda} 
-                            onChange={(e) => setBusqueda(e.target.value)} 
-                            placeholder="Ej. CC-2026-1025 o 43059073" 
-                            style={{ width: '100%', border: '1px solid #ccc', borderRadius: '4px' }} 
-                        />
+            {activeMainTab === 'embargo' && (
+                <div className="card" style={{ marginBottom: '2rem', backgroundColor: '#eef2ff', border: '1px solid #c7d2fe' }}>
+                    <h3 style={{ color: 'var(--color-primary)', borderBottom: '1px solid #c7d2fe', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Validacion de Expedientes</h3>
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
+                        <div style={{ flex: 1 }}>
+                            <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Buscar por Consecutivo o Identificación</label>
+                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                <input 
+                                    type="text" 
+                                    className="p-2" 
+                                    value={busqueda} 
+                                    onChange={(e) => setBusqueda(e.target.value)} 
+                                    placeholder="Ej. CC-2026-1025 o 43059073" 
+                                    style={{ flex: 1, border: '1px solid #ccc', borderRadius: '4px' }} 
+                                />
+                                <button className="btn" onClick={handleBuscarProceso} style={{ backgroundColor: '#2563eb' }}>
+                                    <Search size={18} />
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <button className="btn" onClick={handleBuscarProceso} style={{ backgroundColor: '#2563eb' }}>
-                        Buscar y Vincular
-                    </button>
+
+                    {resultadoBusqueda && (
+                        <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#fff', border: '1px solid #2563eb', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <strong>Resultado:</strong> {resultadoBusqueda.consecutivo} - {resultadoBusqueda.nombre}
+                            </div>
+                            <button className="btn" onClick={() => handleVincular(resultadoBusqueda)} style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}>
+                                Vincular Expediente
+                            </button>
+                        </div>
+                    )}
+
+                    {procesosVinculados.length > 0 && (
+                        <div style={{ marginTop: '1.5rem' }}>
+                            <h4 style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>Procesos Vinculados para esta Medida:</h4>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', backgroundColor: 'white' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '2px solid #c7d2fe' }}>
+                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Consecutivo</th>
+                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Contribuyente</th>
+                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Identificación</th>
+                                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {procesosVinculados.map(p => (
+                                        <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
+                                            <td style={{ padding: '0.5rem' }}>{p.consecutivo}</td>
+                                            <td style={{ padding: '0.5rem' }}>{p.nombre}</td>
+                                            <td style={{ padding: '0.5rem' }}>{p.identificacion}</td>
+                                            <td style={{ padding: '0.5rem', textAlign: 'right' }}>
+                                                <button onClick={() => handleQuitarVinculo(p.id)} style={{ color: '#ef4444', border: 'none', background: 'none', cursor: 'pointer' }}>Quitar</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </div>
-                {procesoVinculado && (
-                    <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '4px' }}>
-                        <p style={{ margin: 0, color: '#065f46' }}><strong>Proceso Vinculado:</strong> {procesoVinculado.consecutivo} - {procesoVinculado.nombre} (ID: {procesoVinculado.identificacion})</p>
-                    </div>
-                )}
-            </div>
+            )}
 
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
                 <button
@@ -181,157 +242,160 @@ const EmbargoView = ({ userName, procesosExternos = [] }) => {
                             1. Identificación de Bienes
                         </h3>
 
-                <div style={{ marginBottom: '2rem' }}>
-                    <h4 style={{ color: 'var(--color-primary)', marginBottom: '1rem' }}>Salarios</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)', gap: '1.5rem' }}>
-                        <div>
-                            <label>Fecha Consulta</label>
-                            <input type="date" value={bienes.salarios.fecha} onChange={e => setBienes({ ...bienes, salarios: { ...bienes.salarios, fecha: e.target.value } })} className="mt-2" />
-                        </div>
-                        <div>
-                            <label>Empresa Laboral</label>
-                            <input type="text" placeholder="Razón Social" value={bienes.salarios.empresa} onChange={e => setBienes({ ...bienes, salarios: { ...bienes.salarios, empresa: e.target.value } })} className="mt-2" />
-                        </div>
-                        <div>
-                            <label>Valor Devengado / Salario</label>
-                            <input type="number" placeholder="$" value={bienes.salarios.valor} onChange={e => setBienes({ ...bienes, salarios: { ...bienes.salarios, valor: e.target.value } })} className="mt-2" />
-                        </div>
-                    </div>
-                </div>
-
-                <div style={{ marginBottom: '2rem' }}>
-                    <h4 style={{ color: 'var(--color-primary)', marginBottom: '1rem' }}>Cuentas Bancarias</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)', gap: '1.5rem' }}>
-                        <div>
-                            <label>Fecha Consulta</label>
-                            <input type="date" className="mt-2" value={bienes.bancarios.fecha} onChange={e => setBienes({ ...bienes, bancarios: { ...bienes.bancarios, fecha: e.target.value } })} />
-                        </div>
-                        <div>
-                            <label>Entidad Financiera</label>
-                            <input type="text" placeholder="Ej. Bancolombia" className="mt-2" value={bienes.bancarios.entidad} onChange={e => setBienes({ ...bienes, bancarios: { ...bienes.bancarios, entidad: e.target.value } })} />
-                        </div>
-                        <div>
-                            <label>Saldo en Cuenta</label>
-                            <input type="number" placeholder="$" className="mt-2" value={bienes.bancarios.saldo} onChange={e => setBienes({ ...bienes, bancarios: { ...bienes.bancarios, saldo: e.target.value } })} />
-                        </div>
-                    </div>
-                </div>
-
-                <div style={{ marginBottom: '1rem' }}>
-                    <h4 style={{ color: 'var(--color-primary)', marginBottom: '1rem' }}>Bienes (Muebles / Inmuebles)</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)', gap: '1.5rem' }}>
-                        <div>
-                            <label>Tipo de Bien</label>
-                            <select className="mt-2" value={bienes.bienes.tipo} onChange={e => setBienes({ ...bienes, bienes: { ...bienes.bienes, tipo: e.target.value } })}>
-                                <option>Inmueble</option>
-                                <option>Vehículo</option>
-                                <option>Terreno</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label>Antigüedad (Años)</label>
-                            <input type="number" placeholder="Ej. 5" className="mt-2" value={bienes.bienes.antiguedad} onChange={e => setBienes({ ...bienes, bienes: { ...bienes.bienes, antiguedad: e.target.value } })} />
-                        </div>
-                        <div>
-                            <label>Valor Avaluado</label>
-                            <input type="number" placeholder="$" className="mt-2" value={bienes.bienes.avaluado} onChange={e => setBienes({ ...bienes, bienes: { ...bienes.bienes, avaluado: e.target.value } })} />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-
-            <div className="card">
-                <h3 style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', marginBottom: '1.5rem' }}>
-                    2. Carga de Soportes (Con Tipificación)
-                </h3>
-                <p style={{ color: 'var(--color-text-light)', marginBottom: '1rem' }}>
-                    Adjunte los certificados que respaldan la identificación de estos bienes, y seleccione su clasificación correspondiente.
-                </p>
-                <div style={{ padding: '1.5rem', border: '2px dashed var(--color-border)', borderRadius: 'var(--radius-md)', background: '#fafafa', textAlign: 'center', marginBottom: '1.5rem', position: 'relative' }}>
-                    <input type="file" multiple onChange={handleFileUpload} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
-                    <p style={{ color: 'var(--color-text)', margin: 0, fontWeight: '500' }}>Arrastre sus archivos aquí o haga clic para seleccionar</p>
-                </div>
-
-                {archivosCargados.length > 0 && (
-                    <div style={{ marginTop: '1rem' }}>
-                        <h4 style={{ marginBottom: '1rem', color: 'var(--color-primary)' }}>Archivos a Cargar</h4>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            {archivosCargados.map(archivo => (
-                                <div key={archivo.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)' }}>
-                                    <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: '500' }}>
-                                        {archivo.nombre}
-                                    </div>
-                                    <select
-                                        value={archivo.tipo}
-                                        onChange={(e) => handleCambiarTipoArchivo(archivo.id, e.target.value)}
-                                        style={{ width: '250px' }}
-                                    >
-                                        <option value="">-- Seleccionar Tipo --</option>
-                                        <option value="Certificado Bancario">Certificado Bancario</option>
-                                        <option value="Certificado de Libertad y Tradición">Certificado de Libertad y Tradición</option>
-                                        <option value="Certificado Salarial">Certificado Salarial</option>
-                                        <option value="Otro Sorteo">Otro Soporte</option>
-                                    </select>
-                                    <button
-                                        className="btn btn-outline"
-                                        onClick={() => handleEliminarArchivo(archivo.id)}
-                                        style={{ color: 'crimson', borderColor: 'crimson', padding: '0.4rem 0.8rem' }}
-                                    >
-                                        Eliminar
-                                    </button>
+                        <div style={{ marginBottom: '2rem' }}>
+                            <h4 style={{ color: 'var(--color-primary)', marginBottom: '1rem' }}>Salarios</h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)', gap: '1.5rem' }}>
+                                <div>
+                                    <label>Fecha Consulta</label>
+                                    <input type="date" value={bienes.salarios.fecha} onChange={e => setBienes({ ...bienes, salarios: { ...bienes.salarios, fecha: e.target.value } })} className="mt-2" />
                                 </div>
-                            ))}
+                                <div>
+                                    <label>Empresa Laboral</label>
+                                    <input type="text" placeholder="Razón Social" value={bienes.salarios.empresa} onChange={e => setBienes({ ...bienes, salarios: { ...bienes.salarios, empresa: e.target.value } })} className="mt-2" />
+                                </div>
+                                <div>
+                                    <label>Valor Devengado / Salario</label>
+                                    <input type="number" placeholder="$" value={bienes.salarios.valor} onChange={e => setBienes({ ...bienes, salarios: { ...bienes.salarios, valor: e.target.value } })} className="mt-2" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ marginBottom: '2rem' }}>
+                            <h4 style={{ color: 'var(--color-primary)', marginBottom: '1rem' }}>Cuentas Bancarias</h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)', gap: '1.5rem' }}>
+                                <div>
+                                    <label>Fecha Consulta</label>
+                                    <input type="date" className="mt-2" value={bienes.bancarios.fecha} onChange={e => setBienes({ ...bienes, bancarios: { ...bienes.bancarios, fecha: e.target.value } })} />
+                                </div>
+                                <div>
+                                    <label>Entidad Financiera</label>
+                                    <input type="text" placeholder="Ej. Bancolombia" className="mt-2" value={bienes.bancarios.entidad} onChange={e => setBienes({ ...bienes, bancarios: { ...bienes.bancarios, entidad: e.target.value } })} />
+                                </div>
+                                <div>
+                                    <label>Saldo en Cuenta</label>
+                                    <input type="number" placeholder="$" className="mt-2" value={bienes.bancarios.saldo} onChange={e => setBienes({ ...bienes, bancarios: { ...bienes.bancarios, saldo: e.target.value } })} />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ marginBottom: '1rem' }}>
+                            <h4 style={{ color: 'var(--color-primary)', marginBottom: '1rem' }}>Bienes (Muebles / Inmuebles)</h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)', gap: '1.5rem' }}>
+                                <div>
+                                    <label>Tipo de Bien</label>
+                                    <select className="mt-2" value={bienes.bienes.tipo} onChange={e => setBienes({ ...bienes, bienes: { ...bienes.bienes, tipo: e.target.value } })}>
+                                        <option>Inmueble</option>
+                                        <option>Vehículo</option>
+                                        <option>Terreno</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Antigüedad (Años)</label>
+                                    <input type="number" placeholder="Ej. 5" className="mt-2" value={bienes.bienes.antiguedad} onChange={e => setBienes({ ...bienes, bienes: { ...bienes.bienes, antiguedad: e.target.value } })} />
+                                </div>
+                                <div>
+                                    <label>Valor Avaluado</label>
+                                    <input type="number" placeholder="$" className="mt-2" value={bienes.bienes.avaluado} onChange={e => setBienes({ ...bienes, bienes: { ...bienes.bienes, avaluado: e.target.value } })} />
+                                </div>
+                            </div>
                         </div>
                     </div>
-                )}
-            </div>
 
-            <div style={{ position: 'absolute', top: '-10000px', left: '-10000px', zIndex: -1 }}>
-                <div ref={pdfRef} style={{ padding: '40px', fontFamily: 'Arial, sans-serif', fontSize: '12px', color: '#000', backgroundColor: 'white', width: '800px' }}>
-                    <div style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '10px' }}>
-                        <h2 style={{ margin: 0 }}>SOLICITUD DE EMBARGO Y MEDIDAS CAUTELARES</h2>
-                        <p style={{ margin: '5px 0 0 0' }}>JURISDICCIÓN COACTIVA</p>
+                    <div className="card">
+                        <h3 style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', marginBottom: '1.5rem' }}>
+                            2. Carga de Soportes (Con Tipificación)
+                        </h3>
+                        <p style={{ color: 'var(--color-text-light)', marginBottom: '1rem' }}>
+                            Adjunte los certificados que respaldan la identificación de estos bienes, y seleccione su clasificación correspondiente.
+                        </p>
+                        <div style={{ padding: '1.5rem', border: '2px dashed var(--color-border)', borderRadius: 'var(--radius-md)', background: '#fafafa', textAlign: 'center', marginBottom: '1.5rem', position: 'relative' }}>
+                            <input type="file" multiple onChange={handleFileUpload} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
+                            <p style={{ color: 'var(--color-text)', margin: 0, fontWeight: '500' }}>Arrastre sus archivos aquí o haga clic para seleccionar</p>
+                        </div>
+
+                        {archivosCargados.length > 0 && (
+                            <div style={{ marginTop: '1rem' }}>
+                                <h4 style={{ marginBottom: '1rem', color: 'var(--color-primary)' }}>Archivos a Cargar</h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    {archivosCargados.map(archivo => (
+                                        <div key={archivo.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)' }}>
+                                            <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: '500' }}>
+                                                {archivo.nombre}
+                                            </div>
+                                            <select
+                                                value={archivo.tipo}
+                                                onChange={(e) => handleCambiarTipoArchivo(archivo.id, e.target.value)}
+                                                style={{ width: '250px' }}
+                                            >
+                                                <option value="">-- Seleccionar Tipo --</option>
+                                                <option value="Certificado Bancario">Certificado Bancario</option>
+                                                <option value="Certificado de Libertad y Tradición">Certificado de Libertad y Tradición</option>
+                                                <option value="Certificado Salarial">Certificado Salarial</option>
+                                                <option value="Otro Soporte">Otro Soporte</option>
+                                            </select>
+                                            <button
+                                                className="btn btn-outline"
+                                                onClick={() => handleEliminarArchivo(archivo.id)}
+                                                style={{ color: 'crimson', borderColor: 'crimson', padding: '0.4rem 0.8rem' }}
+                                            >
+                                                Eliminar
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
-                    <p><strong>Fecha de Generación:</strong> {new Date().toLocaleDateString('es-CO')}</p>
-                    
-                    {procesoVinculado && (
-                        <>
-                            <h3 style={{ borderBottom: '1px solid #ccc', paddingBottom: '5px', marginTop: '20px' }}>Información del Expediente</h3>
-                            <p><strong>Contribuyente:</strong> {procesoVinculado.nombre}</p>
-                            <p><strong>Identificación:</strong> {procesoVinculado.identificacion}</p>
-                            <p><strong>Consecutivo de Proceso:</strong> {procesoVinculado.consecutivo}</p>
-                            <p><strong>Valor Obligación:</strong> ${procesoVinculado.valor.toLocaleString('es-CO')}</p>
-                        </>
-                    )}
+                    <div style={{ position: 'absolute', top: '-10000px', left: '-10000px', zIndex: -1 }}>
+                        <div ref={pdfRef} style={{ padding: '40px', fontFamily: 'Arial, sans-serif', fontSize: '12px', color: '#000', backgroundColor: 'white', width: '800px' }}>
+                            <div style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '10px' }}>
+                                <h2 style={{ margin: 0 }}>SOLICITUD DE EMBARGO Y MEDIDAS CAUTELARES</h2>
+                                <p style={{ margin: '5px 0 0 0' }}>JURISDICCIÓN COACTIVA</p>
+                            </div>
 
-                    <h3 style={{ borderBottom: '1px solid #ccc', paddingBottom: '5px', marginTop: '30px' }}>1. Información de Salarios</h3>
-                    <p><strong>Fecha Consulta:</strong> {bienes.salarios.fecha || 'N/A'}</p>
-                    <p><strong>Empresa Laboral:</strong> {bienes.salarios.empresa || 'N/A'}</p>
-                    <p><strong>Valor Devengado:</strong> {bienes.salarios.valor ? `$ ${Number(bienes.salarios.valor).toLocaleString('es-CO')}` : 'N/A'}</p>
+                            <p><strong>Fecha de Generación:</strong> {new Date().toLocaleDateString('es-CO')}</p>
+                            
+                            {procesosVinculados.length > 0 && (
+                                <>
+                                    <h3 style={{ borderBottom: '1px solid #ccc', paddingBottom: '5px', marginTop: '20px' }}>Expedientes Vinculados</h3>
+                                    {procesosVinculados.map(p => (
+                                        <div key={p.id} style={{ marginBottom: '10px', padding: '5px', borderBottom: '1px dashed #eee' }}>
+                                            <p style={{ margin: '2px 0' }}><strong>Contribuyente:</strong> {p.nombre}</p>
+                                            <p style={{ margin: '2px 0' }}><strong>Identificación:</strong> {p.identificacion}</p>
+                                            <p style={{ margin: '2px 0' }}><strong>Consecutivo:</strong> {p.consecutivo}</p>
+                                            <p style={{ margin: '2px 0' }}><strong>Valor Obligación:</strong> ${p.valor ? p.valor.toLocaleString('es-CO') : '0'}</p>
+                                        </div>
+                                    ))}
+                                </>
+                            )}
 
-                    <h3 style={{ borderBottom: '1px solid #ccc', paddingBottom: '5px', marginTop: '30px' }}>2. Cuentas Bancarias</h3>
-                    <p><strong>Entidad Financiera:</strong> {bienes.bancarios.entidad || 'N/A'}</p>
-                    <p><strong>Saldo en Cuenta:</strong> {bienes.bancarios.saldo ? `$ ${Number(bienes.bancarios.saldo).toLocaleString('es-CO')}` : 'N/A'}</p>
+                            <h3 style={{ borderBottom: '1px solid #ccc', paddingBottom: '5px', marginTop: '30px' }}>1. Información de Salarios</h3>
+                            <p><strong>Fecha Consulta:</strong> {bienes.salarios.fecha || 'N/A'}</p>
+                            <p><strong>Empresa Laboral:</strong> {bienes.salarios.empresa || 'N/A'}</p>
+                            <p><strong>Valor Devengado:</strong> {bienes.salarios.valor ? `$ ${Number(bienes.salarios.valor).toLocaleString('es-CO')}` : 'N/A'}</p>
 
-                    <h3 style={{ borderBottom: '1px solid #ccc', paddingBottom: '5px', marginTop: '30px' }}>3. Bienes</h3>
-                    <p><strong>Tipo de Bien:</strong> {bienes.bienes.tipo}</p>
-                    <p><strong>Antigüedad:</strong> {bienes.bienes.antiguedad ? `${bienes.bienes.antiguedad} años` : 'N/A'}</p>
-                    <p><strong>Valor Avaluado:</strong> {bienes.bienes.avaluado ? `$ ${Number(bienes.bienes.avaluado).toLocaleString('es-CO')}` : 'N/A'}</p>
+                            <h3 style={{ borderBottom: '1px solid #ccc', paddingBottom: '5px', marginTop: '30px' }}>2. Cuentas Bancarias</h3>
+                            <p><strong>Entidad Financiera:</strong> {bienes.bancarios.entidad || 'N/A'}</p>
+                            <p><strong>Saldo en Cuenta:</strong> {bienes.bancarios.saldo ? `$ ${Number(bienes.bancarios.saldo).toLocaleString('es-CO')}` : 'N/A'}</p>
 
-                    <h3 style={{ borderBottom: '1px solid #ccc', paddingBottom: '5px', marginTop: '30px' }}>4. Soportes Adjuntos</h3>
-                    <ul>
-                        {archivosCargados.length > 0 ? archivosCargados.map(a => (
-                            <li key={a.id}>{a.tipo || 'Sin clasificar'}: {a.nombre}</li>
-                        )) : <li>No se adjuntaron soportes.</li>}
-                    </ul>
+                            <h3 style={{ borderBottom: '1px solid #ccc', paddingBottom: '5px', marginTop: '30px' }}>3. Bienes</h3>
+                            <p><strong>Tipo de Bien:</strong> {bienes.bienes.tipo}</p>
+                            <p><strong>Antigüedad:</strong> {bienes.bienes.antiguedad ? `${bienes.bienes.antiguedad} años` : 'N/A'}</p>
+                            <p><strong>Valor Avaluado:</strong> {bienes.bienes.avaluado ? `$ ${Number(bienes.bienes.avaluado).toLocaleString('es-CO')}` : 'N/A'}</p>
 
-                    <div style={{ marginTop: '50px', borderTop: '1px solid #000', width: '250px', textAlign: 'center', paddingTop: '10px' }}>
-                        Firma Funcionario Ejecutor
+                            <h3 style={{ borderBottom: '1px solid #ccc', paddingBottom: '5px', marginTop: '30px' }}>4. Soportes Adjuntos</h3>
+                            <ul>
+                                {archivosCargados.length > 0 ? archivosCargados.map(a => (
+                                    <li key={a.id}>{a.tipo || 'Sin clasificar'}: {a.nombre}</li>
+                                )) : <li>No se adjuntaron soportes.</li>}
+                            </ul>
+
+                            <div style={{ marginTop: '50px', borderTop: '1px solid #000', width: '250px', textAlign: 'center', paddingTop: '10px' }}>
+                                Firma Funcionario Ejecutor
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2rem' }}>
                         <button className="btn" onClick={handleGenerarSolicitud} style={{ padding: '0.75rem 2rem', fontSize: '1.1rem' }}>
@@ -346,45 +410,68 @@ const EmbargoView = ({ userName, procesosExternos = [] }) => {
                     <h3 style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', marginBottom: '1.5rem' }}>
                         Procesos con Obligación Pagada al 100%
                     </h3>
-                    <p style={{ color: 'var(--color-text-light)', marginBottom: '1.5rem' }}>
-                        Los siguientes procesos han cumplido con el total de la obligación y son aptos para el levantamiento de medidas cautelares.
-                    </p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                        <p style={{ color: 'var(--color-text-light)', margin: 0 }}>
+                            Módulo automatizado: Solo se listan procesos con pago del 100%.
+                        </p>
+                        <button className="btn" onClick={handleGenerarMasivo} disabled={seleccionadosMasivos.length === 0} style={{ backgroundColor: '#10b981' }}>
+                            Generar Resoluciones Masivas ({seleccionadosMasivos.length})
+                        </button>
+                    </div>
 
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                         <thead>
                             <tr style={{ backgroundColor: '#efefef', borderBottom: '2px solid #ccc' }}>
+                                <th style={{ padding: '1rem', width: '40px' }}>
+                                    <input 
+                                        type="checkbox" 
+                                        onChange={(e) => {
+                                            if (e.target.checked) setSeleccionadosMasivos(procesosParaLevantamiento.map(p => p.id));
+                                            else setSeleccionadosMasivos([]);
+                                        }}
+                                        checked={seleccionadosMasivos.length === procesosParaLevantamiento.length && procesosParaLevantamiento.length > 0}
+                                    />
+                                </th>
                                 <th style={{ padding: '1rem' }}>Consecutivo</th>
                                 <th style={{ padding: '1rem' }}>Contribuyente</th>
                                 <th style={{ padding: '1rem' }}>Identificación</th>
-                                <th style={{ padding: '1rem' }}>Matrícula Inmobiliaria</th>
-                                <th style={{ padding: '1rem' }}>Fecha de Pago Total</th>
+                                <th style={{ padding: '1rem' }}>Estado de Pago</th>
                                 <th style={{ padding: '1rem' }}>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {mockPagados.map(p => (
+                            {procesosParaLevantamiento.length > 0 ? procesosParaLevantamiento.map(p => (
                                 <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
+                                    <td style={{ padding: '1rem' }}>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={seleccionadosMasivos.includes(p.id)}
+                                            onChange={() => handleToggleSeleccion(p.id)}
+                                        />
+                                    </td>
                                     <td style={{ padding: '1rem', fontWeight: 'bold' }}>{p.consecutivo}</td>
                                     <td style={{ padding: '1rem' }}>{p.nombre}</td>
                                     <td style={{ padding: '1rem' }}>{p.identificacion}</td>
-                                    <td style={{ padding: '1rem' }}>{p.matricula}</td>
-                                    <td style={{ padding: '1rem' }}>{p.fechaPago}</td>
+                                    <td style={{ padding: '1rem' }}>
+                                        <span style={{ color: '#059669', fontWeight: 'bold' }}>100% CANCELADO</span>
+                                    </td>
                                     <td style={{ padding: '1rem' }}>
                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                                             <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }} onClick={() => handleGenerarLevantamiento(p)}>
-                                                <FileText size={14} /> Generar Resolución
-                                            </button>
-                                            <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }} onClick={() => handleEnviarCorreoLevantamiento(p)}>
-                                                <Send size={14} /> Enviar
+                                                <FileText size={14} /> Resolución
                                             </button>
                                         </div>
                                     </td>
                                 </tr>
-                            ))}
+                            )) : (
+                                <tr>
+                                    <td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>No hay procesos aptos para levantamiento en este momento.</td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
 
-                    <div style={{ position: 'absolute', top: '-10000px', left: '-10000px', zIndex: -1 }}>
+                    <div style={{ position: 'absolute', top: '-10000px', left: '-10000px', z_index: -1 }}>
                         <div ref={levantamientoPdfRef} style={{ padding: '60px 80px', fontFamily: 'Arial, sans-serif', color: '#000', backgroundColor: 'white', width: '800px', minHeight: '1100px' }}>
                             {selectedParaLevantamiento && (
                                 <>
@@ -460,4 +547,5 @@ const EmbargoView = ({ userName, procesosExternos = [] }) => {
         </div>
     );
 };
+
 export default EmbargoView;

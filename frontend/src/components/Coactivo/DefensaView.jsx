@@ -1,14 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import IndicadorAsignacion from '../Shared/IndicadorAsignacion';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Search } from 'lucide-react';
+import IndicadorAsignacion from '../Shared/IndicadorAsignacion';
 
-const DefensaView = ({ userName, setProcesosExternos }) => {
+const DefensaView = ({ userName, setProcesosExternos, procesosExternos = [] }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const procesoRouteState = location.state?.procesoPreseleccionado || null;
 
     const [procesoVinculado, setProcesoVinculado] = useState(procesoRouteState);
     const [estadoPruebas, setEstadoPruebas] = useState('');
+    
+    // Panel de búsqueda y validación
+    const [busqueda, setBusqueda] = useState('');
+    const [resultadoBusqueda, setResultadoBusqueda] = useState(null);
+
+    const handleBuscarProceso = () => {
+        const found = procesosExternos.find(p => p.consecutivo.toUpperCase() === busqueda.toUpperCase() || p.identificacion === busqueda);
+        if (found) {
+            setResultadoBusqueda(found);
+        } else {
+            alert('No se encontró ningún proceso con ese consecutivo o identificación.');
+            setResultadoBusqueda(null);
+        }
+    };
+
+    const handleVincular = (proceso) => {
+        setProcesoVinculado(proceso);
+        setResultadoBusqueda(null);
+        setBusqueda('');
+    };
 
     useEffect(() => {
         if (procesoRouteState) {
@@ -60,7 +81,40 @@ const DefensaView = ({ userName, setProcesosExternos }) => {
             <h1 className="page-title">Defensa del Deudor</h1>
             <p className="page-subtitle">Recepción de excepciones formales y evaluación de pruebas aportadas.</p>
 
-            <IndicadorAsignacion area="Dirección Jurídica" funcionario={userName || "Dr. Roberto Gómez"} />
+            <IndicadorAsignacion area="Dirección Jurídica" funcionario={userName} />
+
+            <div className="card" style={{ marginBottom: '2rem', backgroundColor: '#eef2ff', border: '1px solid #c7d2fe' }}>
+                <h3 style={{ color: 'var(--color-primary)', borderBottom: '1px solid #c7d2fe', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Validacion de Expedientes</h3>
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Buscar por Consecutivo o Identificación</label>
+                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                            <input 
+                                type="text" 
+                                className="p-2" 
+                                value={busqueda} 
+                                onChange={(e) => setBusqueda(e.target.value)} 
+                                placeholder="Ej. CC-2026-1025 o 43059073" 
+                                style={{ flex: 1, border: '1px solid #ccc', borderRadius: '4px' }} 
+                            />
+                            <button className="btn" onClick={handleBuscarProceso} style={{ backgroundColor: '#2563eb' }}>
+                                <Search size={18} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {resultadoBusqueda && (
+                    <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#fff', border: '1px solid #2563eb', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                            <strong>Resultado:</strong> {resultadoBusqueda.consecutivo} - {resultadoBusqueda.nombre}
+                        </div>
+                        <button className="btn" onClick={() => handleVincular(resultadoBusqueda)} style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}>
+                            Vincular para Defensa
+                        </button>
+                    </div>
+                )}
+            </div>
 
             {procesoVinculado && (
                 <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#e0f2fe', border: '1px solid #bae6fd', borderRadius: '8px' }}>
@@ -161,4 +215,5 @@ const DefensaView = ({ userName, setProcesosExternos }) => {
         </div>
     );
 }
+
 export default DefensaView;

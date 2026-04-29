@@ -95,63 +95,67 @@ const CierreView = ({ procesosExternos = [], setProcesosExternos, userRole = 'Ad
             <h1 className="page-title">Cierre Normativo del Proceso</h1>
             <p className="page-subtitle">Paso final: Archivo documental y gestión de cierres con aprobación del Secretario de Hacienda.</p>
 
-            <IndicadorAsignacion area="Comité de Cartera / Cierres" funcionario={userName || "Dr. Felipe Guzmán"} />
+            <IndicadorAsignacion area="Comité de Cartera / Cierres" funcionario={userName} />
 
             {/* Bandeja de Aprobación — solo Administrador/Secretario */}
             {userRole === 'Administrador' && (
-                <div className="card" style={{ marginBottom: '2rem', border: '2px solid #f59e0b', backgroundColor: '#fffbeb' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                        <h3 style={{ margin: 0, color: '#92400e' }}>
-                            🔔 Bandeja de Aprobación del Secretario de Hacienda
+                <div className="card" style={{ marginBottom: '2rem', border: '2px solid #3b82f6', backgroundColor: '#eff6ff' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                        <h3 style={{ margin: 0, color: '#1d4ed8', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            📥 Bandeja de Aprobación de Cierres (Secretario de Hacienda)
                             {procesosPendientesCierre.length > 0 && (
-                                <span style={{ marginLeft: '0.75rem', backgroundColor: '#dc2626', color: 'white', borderRadius: '12px', padding: '0.15rem 0.6rem', fontSize: '0.85rem' }}>
+                                <span style={{ backgroundColor: '#dc2626', color: 'white', borderRadius: '12px', padding: '0.15rem 0.6rem', fontSize: '0.85rem' }}>
                                     {procesosPendientesCierre.length}
                                 </span>
                             )}
                         </h3>
-                        <button className="btn btn-outline" onClick={() => setShowBandeja(!showBandeja)} style={{ fontSize: '0.85rem', color: '#92400e', borderColor: '#92400e' }}>
-                            {showBandeja ? 'Ocultar' : 'Ver pendientes'}
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <span className="badge" style={{ backgroundColor: '#dbeafe', color: '#1e40af' }}>Rol: Secretario</span>
+                        </div>
                     </div>
 
-                    {showBandeja && (
-                        procesosPendientesCierre.length === 0 ? (
-                            <p style={{ color: '#6b7280', textAlign: 'center', padding: '1rem' }}>No hay propuestas de cierre pendientes.</p>
-                        ) : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                    {procesosPendientesCierre.length === 0 ? (
+                        <p style={{ color: '#6b7280', textAlign: 'center', padding: '2rem', backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: '8px' }}>
+                            No hay propuestas de cierre pendientes de revisión.
+                        </p>
+                    ) : (
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', backgroundColor: 'white', borderRadius: '8px', overflow: 'hidden' }}>
                                 <thead>
-                                    <tr style={{ backgroundColor: '#fef3c7', borderBottom: '2px solid #fcd34d' }}>
-                                        <th style={{ padding: '0.75rem' }}>Consecutivo</th>
-                                        <th style={{ padding: '0.75rem' }}>Deudor</th>
-                                        <th style={{ padding: '0.75rem' }}>Motivo</th>
-                                        <th style={{ padding: '0.75rem' }}>Propuesto por</th>
-                                        <th style={{ padding: '0.75rem' }}>Fecha</th>
-                                        <th style={{ padding: '0.75rem' }}>Acciones</th>
+                                    <tr style={{ backgroundColor: '#dbeafe', borderBottom: '2px solid #3b82f6' }}>
+                                        <th style={{ padding: '1rem', textAlign: 'left' }}>Consecutivo</th>
+                                        <th style={{ padding: '1rem', textAlign: 'left' }}>Contribuyente</th>
+                                        <th style={{ padding: '1rem', textAlign: 'left' }}>Motivo Propuesto</th>
+                                        <th style={{ padding: '1rem', textAlign: 'left' }}>Propuesto por</th>
+                                        <th style={{ padding: '1rem', textAlign: 'center' }}>Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {procesosPendientesCierre.map(p => (
-                                        <tr key={p.id} style={{ borderBottom: '1px solid #fde68a' }}>
-                                            <td style={{ padding: '0.75rem', color: '#4338ca', fontWeight: 'bold' }}>{p.consecutivo}</td>
-                                            <td style={{ padding: '0.75rem' }}>{p.nombre}</td>
-                                            <td style={{ padding: '0.75rem', fontSize: '0.8rem' }}>{motivoLabel[p.motivoCierre] || p.motivoCierre}</td>
-                                            <td style={{ padding: '0.75rem' }}>{p.propuestoPor || '—'}</td>
-                                            <td style={{ padding: '0.75rem', fontSize: '0.8rem' }}>{p.fechaPropuestaCierre ? new Date(p.fechaPropuestaCierre).toLocaleDateString('es-CO') : '—'}</td>
-                                            <td style={{ padding: '0.75rem' }}>
-                                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <tr key={p.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                            <td style={{ padding: '1rem', color: '#4338ca', fontWeight: 'bold' }}>{p.consecutivo}</td>
+                                            <td style={{ padding: '1rem' }}>{p.nombre}</td>
+                                            <td style={{ padding: '1rem' }}>
+                                                <span style={{ fontSize: '0.8rem', padding: '0.2rem 0.5rem', backgroundColor: '#fef3c7', color: '#b45309', borderRadius: '4px', fontWeight: 'bold' }}>
+                                                    {motivoLabel[p.motivoCierre] || p.motivoCierre}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '1rem' }}>{p.propuestoPor || 'Abogado'}</td>
+                                            <td style={{ padding: '1rem' }}>
+                                                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
                                                     <button
                                                         className="btn"
                                                         onClick={() => handleAprobarCierre(p)}
-                                                        style={{ fontSize: '0.8rem', padding: '0.3rem 0.8rem', backgroundColor: '#059669', border: 'none' }}
+                                                        style={{ fontSize: '0.8rem', padding: '0.4rem 1rem', backgroundColor: '#10b981', border: 'none' }}
                                                     >
-                                                        ✅ Aprobar
+                                                        Aprobar Cierre
                                                     </button>
                                                     <button
                                                         className="btn btn-outline"
                                                         onClick={() => handleRechazarCierre(p)}
-                                                        style={{ fontSize: '0.8rem', padding: '0.3rem 0.8rem', color: '#dc2626', borderColor: '#dc2626' }}
+                                                        style={{ fontSize: '0.8rem', padding: '0.4rem 1rem', color: '#ef4444', borderColor: '#ef4444' }}
                                                     >
-                                                        ❌ Rechazar
+                                                        Rechazar
                                                     </button>
                                                 </div>
                                             </td>
@@ -159,7 +163,7 @@ const CierreView = ({ procesosExternos = [], setProcesosExternos, userRole = 'Ad
                                     ))}
                                 </tbody>
                             </table>
-                        )
+                        </div>
                     )}
                 </div>
             )}
